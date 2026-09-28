@@ -255,17 +255,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           <button
+            type="button"
             onClick={() => {
-              if ((window as any).forceClearCacheAndReload) {
+              if (onTriggerSyncNow) {
+                onTriggerSyncNow();
+              } else if ((window as any).forceClearCacheAndReload) {
                 (window as any).forceClearCacheAndReload();
               } else {
                 window.location.reload();
               }
             }}
-            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-            title="Sync & Reload Latest App Version (Clears Mobile Cache)"
+            disabled={isSyncing}
+            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer active:scale-95 disabled:opacity-60"
+            title="Sync with Cloud & Refresh"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
           </button>
 
           {onOpenPrinterSettings && (
@@ -366,16 +370,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={() => {
-            if ((window as any).forceClearCacheAndReload) {
+            if (onTriggerSyncNow) {
+              onTriggerSyncNow();
+            } else if ((window as any).forceClearCacheAndReload) {
               (window as any).forceClearCacheAndReload();
             } else {
               window.location.reload();
             }
           }}
-          className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer active:scale-90"
-          title="Sync & Reload Latest App Version"
+          disabled={isSyncing}
+          className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer active:scale-90 disabled:opacity-60"
+          title="Sync with Cloud & Refresh Data"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
         </button>
 
         {onOpenPrinterSettings && (

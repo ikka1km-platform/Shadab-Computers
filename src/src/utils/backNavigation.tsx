@@ -228,20 +228,26 @@ export function useBackNavigation({
       touchCurrentY = touch.clientY;
       touchStartTime = Date.now();
 
+      // Rule 1: Gesture navigation ONLY triggers from the screen edges (like native Android & iOS)
+      const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 400;
+      const isLeftEdge = touchStartX <= 35;
+      const isRightEdge = touchStartX >= screenWidth - 35;
+      if (!isLeftEdge && !isRightEdge) {
+        // Touched in the middle of screen (for scrolling tabs, lists, tables) -> never trigger back navigation
+        isTracking = false;
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       if (!target) {
         isTracking = true;
         return;
       }
 
-      // Avoid triggering when user interacts with form text inputs
-      const tagName = target.tagName?.toLowerCase();
+      // Rule 2: Ignore if touch starts inside interactive elements or horizontally scrollable tab strips
       if (
-        tagName === 'input' ||
-        tagName === 'textarea' ||
-        target.isContentEditable ||
-        target.closest('input') ||
-        target.closest('textarea')
+        target.closest('input, textarea, select, button, nav, [role="tablist"], [class*="overflow-x"]') ||
+        target.isContentEditable
       ) {
         isTracking = false;
         return;
@@ -265,16 +271,16 @@ export function useBackNavigation({
       const elapsed = Date.now() - touchStartTime;
 
       // Reasonable swipe duration
-      if (elapsed > 850) return;
+      if (elapsed > 700) return;
 
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
 
-      // Must be horizontal swipe (absX >= 40px and horizontal distance at least 1.15x vertical distance)
-      if (absX >= 40 && absX > absY * 1.15) {
-        if (deltaX > 0) {
+      // Must be an intentional swipe starting from edge (at least 50px horizontal and primarily horizontal)
+      if (absX >= 50 && absX > absY * 1.5) {
+        if (deltaX > 0 && touchStartX <= 35) {
           handleGoBack('swipe_right');
-        } else {
+        } else if (deltaX < 0 && touchStartX >= (window.innerWidth - 35)) {
           handleGoBack('swipe_left');
         }
       }
