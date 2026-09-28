@@ -1,0 +1,64 @@
+Viewed package.json:1-47
+Ran command: `git status`
+Ran command: `git remote -v`
+Edited package.json
+Created render.yaml
+Ran command: `powershell -Command "Copy-Item -Force render.yaml 'C:\VYApaar with cash counter\render.yaml'; Copy-Item -Force package.json 'C:\VYApaar with cash counter\package.json'"`
+Ran command: `git config --list`
+Ran command: `gh --version`
+
+Here is how to set up **Solution 1 (Free 24/7 Cloud on Render.com)** so you get a permanent, unchanging address that never expires and runs even when your laptop is switched off:
+
+---
+
+### Step-by-Step: Deploy to Render.com (100% Free)
+
+#### Step 1: Create a GitHub Repository
+1. Go to [github.com](https://github.com) and log in.
+2. Click the green **"New"** button to create a new repository (name it something like `vyapar-cloud`).
+3. You can set it to **Private** or **Public**, then click **Create repository**.
+4. Copy the repository link (e.g., `https://github.com/your-username/vyapar-cloud.git`).
+
+---
+
+#### Step 2: Push your project to GitHub
+In your project folder (`C:\VYApaar with cash counter`), open PowerShell or Command Prompt and run:
+
+```bash
+git add .
+git commit -m "Configure 24/7 cloud server"
+git remote add origin https://github.com/<your-username>/vyapar-cloud.git
+git push -u origin master
+```
+
+*(I have already created the `render.yaml` configuration and start scripts in your project so Render detects everything automatically).*
+
+---
+
+#### Step 3: Deploy on Render.com
+1. Go to **[render.com](https://render.com)** and click **Sign Up** ➔ choose **Continue with GitHub**.
+2. Click the **"New +"** button at the top right and select **Web Service**.
+3. Select your **`vyapar-cloud`** repository.
+4. Render will show the settings:
+   * **Name:** `shadab-vyapar` (or whatever you prefer)
+   * **Region:** Singapore or Frankfurt (fastest for India)
+   * **Instance Type:** **Free**
+   * **Build Command:** `npm install && npm run build`
+   * **Start Command:** `npm start`
+5. Click **Deploy Web Service**.
+
+---
+
+### The Result:
+In 2 minutes, Render will assign your permanent URL:
+```text
+https://shadab-vyapar.onrender.com
+```
+* **Never expires** — it stays active 24/7 forever.
+* **Never changes** — no more random words or changing IP addresses.
+* **Any network works** — your phone on hotspot, tablet on shop Wi-Fi, iPhone on 5G — all connect smoothly to the same cloud.
+
+---
+
+> [!TIP]
+> **Once deployed:** You simply paste your new `https://shadab-vyapar.onrender.com` into the app's Cloud URL box once, click **Apply & Test**, and you will never need to touch or configure it ever again!
