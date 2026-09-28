@@ -39,8 +39,10 @@ import {
   Firm,
   BankAccount,
   BusinessProfile,
-  UserRole
+  UserRole,
+  PartyType
 } from '../../types';
+import { db, updatePartyBalance, enqueueSyncItem } from '../../db/db';
 import { formatCurrency, numberToWordsINR, formatDate } from '../../utils/formatters';
 import { compressImage } from '../../utils/imageCompressor';
 import { AttachmentViewerModal } from '../common/AttachmentViewerModal';
@@ -101,8 +103,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   // More Options (Three-Dots menu: Share via WhatsApp & Thermal Print)
   const [isMoreOptionsSheetOpen, setIsMoreOptionsSheetOpen] = useState(false);
 
-  // Payment Settlement Status for Sale/Purchase
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('PAID');
+  // Payment Settlement Status for Sale/Purchase (Default: UNPAID / Credit until payment done selected)
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('UNPAID');
   const [paidAmount, setPaidAmount] = useState<number>(0);
 
   // Split state
@@ -126,6 +128,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [attachments, setAttachments] = useState<string[]>([]);
   const [viewingAttachment, setViewingAttachment] = useState<string | null>(null);
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
+  const [showDenomCounter, setShowDenomCounter] = useState<boolean>(false);
 
   // Contra & Return states
   const [contraType, setContraType] = useState<'CASH_TO_BANK' | 'BANK_TO_CASH' | 'BANK_TO_BANK'>('CASH_TO_BANK');
@@ -133,6 +136,58 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [toBankAccountId, setToBankAccountId] = useState<number | undefined>(bankAccounts[1]?.id || bankAccounts[0]?.id);
   const [originalVoucherNumber, setOriginalVoucherNumber] = useState<string>('');
   const [returnReason, setReturnReason] = useState<string>('Damaged / Defective');
+
+  // Quick Add Party Switch & State in Customer/Party column
+  const [isQuickAddParty, setIsQuickAddParty] = useState<boolean>(false);
+  const [quickPartyName, setQuickPartyName] = useState<string>('');
+  const [quickPartyPhone, setQuickPartyPhone] = useState<string>('');
+  const [isQuickAddingParty, setIsQuickAddingParty] = useState<boolean>(false);
+
+  const handleQuickCreateParty = async () => {
+    if (!quickPartyName.trim()) return;
+    setIsQuickAddingParty(true);
+    try {
+      const selectedFirmObj = firms.find((f) => f.id === firmId) || firms[0];
+      const targetPartyType: PartyType =
+        type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE'
+          ? 'CUSTOMER'
+          : 'SUPPLIER';
+
+      const newPartyRecord: Party = {
+        name: quickPartyName.trim(),
+        accountCode: `ACC-${Math.floor(1000 + Math.random() * 9000)}`,
+        phone: quickPartyPhone.trim(),
+        partyType: targetPartyType,
+        openingBalance: 0,
+        currentBalance: 0,
+        firmId: firmId,
+        firmName: selectedFirmObj?.name,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const newId = await db.parties.add(newPartyRecord);
+      await updatePartyBalance(newId);
+      await enqueueSyncItem({
+        entityType: 'party',
+        entityId: newPartyRecord.name,
+        action: 'CREATE',
+        payload: { ...newPartyRecord, id: newId },
+        firmId: profile?.firmId,
+      });
+
+      // Immediately select newly created party
+      setPartyId(newId);
+      setQuickPartyName('');
+      setQuickPartyPhone('');
+      setIsQuickAddParty(false);
+    } catch (err: any) {
+      console.error('Failed to quick add party:', err);
+      alert('Failed to add party: ' + (err?.message || err));
+    } finally {
+      setIsQuickAddingParty(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -200,15 +255,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentMode('CASH');
       const itemsToSet = initialItems && initialItems.length > 0 ? initialItems : [];
       setInvoiceItems(itemsToSet);
+
+      // Default: Whenever a Sale (or Purchase) is created, it automatically defaults to CREDIT (UNPAID / Udhar)
+      // until the user explicitly selects Paid/Cash or Partial Paid
+      const isCreditDefault = initialType === 'SALE' || initialType === 'PURCHASE';
+      const defaultStatus: PaymentStatus = isCreditDefault ? 'UNPAID' : 'PAID';
+      setPaymentStatus(defaultStatus);
+
       if (itemsToSet.length > 0) {
         const sum = itemsToSet.reduce((acc, row) => acc + (row.total || 0), 0);
         setAmount(sum);
-        setPaidAmount(sum);
+        setPaidAmount(defaultStatus === 'UNPAID' ? 0 : sum);
       } else {
         setAmount(0);
         setPaidAmount(0);
       }
-      setPaymentStatus(initialType === 'SALE' ? 'PAID' : 'PAID');
       setCashPart(0);
       setOnlinePart(0);
       setOnlineMode('UPI');
@@ -216,7 +277,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setDescription('');
       setAttachments([]);
       setDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 });
-      setAutoSyncFromDenom(true);
+      setAutoSyncFromDenom(false);
 
       const prefix =
         initialType === 'PAYMENT_IN' ? 'REC' :
@@ -224,6 +285,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         initialType === 'SALE' ? 'INV' :
         initialType === 'PURCHASE' ? 'BILL' : 'EXP';
       setVoucherNumber(`${prefix}-${Math.floor(1000 + Math.random() * 9000)}`);
+      setIsQuickAddParty(false);
+      setQuickPartyName('');
+      setQuickPartyPhone('');
     }
   }, [isOpen, initialType, initialPartyId, txToEdit]);
 
@@ -301,9 +365,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
     const grandTotal = updated.reduce((sum, item) => sum + item.total, 0);
     setAmount(grandTotal);
-    if (paymentMode === 'SPLIT') {
-      setCashPart(Math.floor(grandTotal / 2));
-      setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+    if (paymentStatus === 'PAID') {
+      setPaidAmount(grandTotal);
+      if (paymentMode === 'SPLIT') {
+        setCashPart(Math.floor(grandTotal / 2));
+        setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+      }
+    } else if (paymentStatus === 'PARTIAL') {
+      const clamped = Math.min(paidAmount, grandTotal);
+      setPaidAmount(clamped);
+      if (paymentMode === 'SPLIT') {
+        const half = Math.floor(clamped / 2);
+        setCashPart(half);
+        setOnlinePart(clamped - half);
+      }
+    } else {
+      setPaidAmount(0);
+      setCashPart(0);
+      setOnlinePart(0);
     }
   };
 
@@ -312,9 +391,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setInvoiceItems(updated);
     const grandTotal = updated.reduce((sum, item) => sum + item.total, 0);
     setAmount(grandTotal);
-    if (paymentMode === 'SPLIT') {
-      setCashPart(Math.floor(grandTotal / 2));
-      setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+    if (paymentStatus === 'PAID') {
+      setPaidAmount(grandTotal);
+      if (paymentMode === 'SPLIT') {
+        setCashPart(Math.floor(grandTotal / 2));
+        setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+      }
+    } else if (paymentStatus === 'PARTIAL') {
+      const clamped = Math.min(paidAmount, grandTotal);
+      setPaidAmount(clamped);
+      if (paymentMode === 'SPLIT') {
+        const half = Math.floor(clamped / 2);
+        setCashPart(half);
+        setOnlinePart(clamped - half);
+      }
+    } else {
+      setPaidAmount(0);
+      setCashPart(0);
+      setOnlinePart(0);
     }
   };
 
@@ -350,9 +444,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setInvoiceItems(nextList);
         const grandTotal = nextList.reduce((sum, it) => sum + it.total, 0);
         setAmount(grandTotal);
-        if (paymentMode === 'SPLIT') {
-          setCashPart(Math.floor(grandTotal / 2));
-          setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+        if (paymentStatus === 'PAID') {
+          setPaidAmount(grandTotal);
+          if (paymentMode === 'SPLIT') {
+            setCashPart(Math.floor(grandTotal / 2));
+            setOnlinePart(grandTotal - Math.floor(grandTotal / 2));
+          }
+        } else if (paymentStatus === 'PARTIAL') {
+          const clamped = Math.min(paidAmount, grandTotal);
+          setPaidAmount(clamped);
+          if (paymentMode === 'SPLIT') {
+            const half = Math.floor(clamped / 2);
+            setCashPart(half);
+            setOnlinePart(clamped - half);
+          }
+        } else {
+          setPaidAmount(0);
+          setCashPart(0);
+          setOnlinePart(0);
         }
       }
     } else {
@@ -493,6 +602,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setCashPart(half);
         setOnlinePart(curPaid - half);
       }
+    } else {
+      setPaidAmount(0);
+      setCashPart(0);
+      setOnlinePart(0);
     }
   };
 
@@ -748,25 +861,37 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-lg">
-              {txToEdit ? `Edit ${txToEdit.type.replace('_', ' ')} Voucher` :
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-1 sm:p-3 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-150">
+        {/* Compact Header */}
+        <div className="px-3.5 py-2.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 sm:p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 border border-slate-700 shadow-2xs mr-0.5"
+              title="Back (Close Modal)"
+            >
+              <ArrowLeft className="w-4 h-4 text-emerald-400" />
+              <span className="hidden xs:inline">Back</span>
+            </button>
+            <h3 className="font-bold text-sm sm:text-base truncate">
+              {txToEdit ? `Edit ${txToEdit.type.replace('_', ' ')}` :
                type === 'PAYMENT_IN' ? 'Receive Money (Receipt)' :
                type === 'PAYMENT_OUT' ? 'Pay Money (Payment Out)' :
                type === 'SALE' ? 'Create Sales Invoice / Bill' :
                type === 'CREDIT_NOTE' ? 'Sale Return (Credit Note)' :
                type === 'PURCHASE' ? 'Record Purchase Bill' :
                type === 'DEBIT_NOTE' ? 'Purchase Return (Debit Note)' :
-               type === 'ESTIMATE' ? 'Create Quotation / Estimate (Kachha Bill)' :
+               type === 'ESTIMATE' ? 'Quotation / Estimate (Kachha)' :
                type === 'CONTRA' ? 'Contra Voucher (Cash ⇄ Bank)' :
                'Record Business Expense'}
             </h3>
-            <p className="text-xs text-slate-400">Voucher No: {voucherNumber}</p>
+            <span className="text-[10px] text-slate-300 font-mono bg-slate-800 px-1.5 py-0.5 rounded shrink-0">
+              {voucherNumber}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {type === 'ESTIMATE' && (
               <button
                 type="button"
@@ -776,7 +901,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                   setPaymentStatus('UNPAID');
                   setPaidAmount(0);
                 }}
-                className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                 title="Convert this quotation to an active sale invoice"
               >
                 <ArrowRightCircle className="w-3.5 h-3.5" />
@@ -788,11 +913,11 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
               <button
                 type="button"
                 onClick={() => onPrintTx(txToEdit)}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Print Thermal Receipt Slip"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Print Receipt</span>
+                <span className="hidden sm:inline">Print</span>
               </button>
             )}
 
@@ -800,32 +925,32 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
             <button
               type="button"
               onClick={() => setIsMoreOptionsSheetOpen(true)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="More Options (Share via WhatsApp, Thermal Print)"
             >
-              <MoreVertical className="w-5 h-5" />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             <button
               onClick={onClose}
               className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {!txToEdit && (
-          <div className="bg-slate-100 p-2 border-b border-slate-200 flex flex-wrap gap-1.5 text-xs font-bold">
+          <div className="bg-slate-100 px-2 py-1.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar text-xs font-bold shrink-0">
             {[
-              { id: 'PAYMENT_IN', label: '+ Payment In (Receipt)', color: 'bg-emerald-600' },
+              { id: 'PAYMENT_IN', label: '+ Receipt', color: 'bg-emerald-600' },
               { id: 'SALE', label: '+ Sale Bill', color: 'bg-blue-600' },
-              { id: 'CREDIT_NOTE', label: '↺ Sale Return (Credit Note)', color: 'bg-teal-600' },
-              { id: 'PAYMENT_OUT', label: '+ Payment Out (Pay)', color: 'bg-rose-600' },
+              { id: 'CREDIT_NOTE', label: '↺ Sale Return', color: 'bg-teal-600' },
+              { id: 'PAYMENT_OUT', label: '+ Payment Out', color: 'bg-rose-600' },
               { id: 'PURCHASE', label: '+ Purchase Bill', color: 'bg-amber-600' },
-              { id: 'DEBIT_NOTE', label: '↺ Purchase Return (Debit Note)', color: 'bg-orange-600' },
+              { id: 'DEBIT_NOTE', label: '↺ Purchase Return', color: 'bg-orange-600' },
               { id: 'ESTIMATE', label: '+ Estimate', color: 'bg-indigo-600' },
-              { id: 'CONTRA', label: '⇄ Contra (Cash ⇄ Bank)', color: 'bg-purple-600' },
+              { id: 'CONTRA', label: '⇄ Contra', color: 'bg-purple-600' },
               { id: 'EXPENSE', label: '+ Expense', color: 'bg-slate-700' },
             ]
               .filter((tab) => getAllowedTransactionTypes(currentRole).includes(tab.id as TransactionType))
@@ -833,120 +958,112 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 <button
                   key={tab.id}
                   type="button"
-                onClick={() => {
-                  setType(tab.id as TransactionType);
-                  const prefix = tab.id === 'PAYMENT_IN' ? 'REC' :
-                                 tab.id === 'PAYMENT_OUT' ? 'PAY' :
-                                 tab.id === 'SALE' ? 'INV' :
-                                 tab.id === 'CREDIT_NOTE' ? 'CRN' :
-                                 tab.id === 'PURCHASE' ? 'BILL' :
-                                 tab.id === 'DEBIT_NOTE' ? 'DRN' :
-                                 tab.id === 'ESTIMATE' ? 'EST' :
-                                 tab.id === 'CONTRA' ? 'CNT' : 'EXP';
-                  setVoucherNumber(`${prefix}-${Math.floor(1000 + Math.random() * 9000)}`);
-                }}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  type === tab.id
-                    ? `${tab.color} text-white shadow-xs`
-                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+                  onClick={() => {
+                    const newType = tab.id as TransactionType;
+                    setType(newType);
+                    const prefix = tab.id === 'PAYMENT_IN' ? 'REC' :
+                                   tab.id === 'PAYMENT_OUT' ? 'PAY' :
+                                   tab.id === 'SALE' ? 'INV' :
+                                   tab.id === 'CREDIT_NOTE' ? 'CRN' :
+                                   tab.id === 'PURCHASE' ? 'BILL' :
+                                   tab.id === 'DEBIT_NOTE' ? 'DRN' :
+                                   tab.id === 'ESTIMATE' ? 'EST' :
+                                   tab.id === 'CONTRA' ? 'CNT' : 'EXP';
+                    setVoucherNumber(`${prefix}-${Math.floor(1000 + Math.random() * 9000)}`);
+                    if (newType === 'SALE' || newType === 'PURCHASE') {
+                      setPaymentStatus('UNPAID');
+                      setPaidAmount(0);
+                      setCashPart(0);
+                      setOnlinePart(0);
+                    } else {
+                      setPaymentStatus('PAID');
+                      setPaidAmount(amount);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
+                    type === tab.id
+                      ? `${tab.color} text-white shadow-2xs`
+                      : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-5 md:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {/* Firm Selector */}
-          {firms.length > 0 && (
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
-              <span className="font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                🏢 Target Business Firm / Branch:
-              </span>
-              <select
-                value={firmId || ''}
-                onChange={(e) => setFirmId(Number(e.target.value) || undefined)}
-                className="p-1.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none flex-1 max-w-xs"
-              >
-                {firms.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name} ({f.code || 'Main'})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
+        <form onSubmit={handleSubmit} className="p-2 sm:p-3 space-y-2 overflow-y-auto flex-1 flex flex-col justify-between">
           {/* Contra Mode Selection (for Internal Cash ⇄ Bank Transfers) */}
           {type === 'CONTRA' ? (
-            <div className="bg-purple-50/80 p-4 rounded-xl border border-purple-200 space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <ArrowLeftRight className="w-4 h-4 text-purple-600" /> Contra Internal Transfer Mode:
+            <div className="bg-purple-50/80 p-2 sm:p-2.5 rounded-xl border border-purple-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-900 uppercase flex items-center gap-1.5">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-purple-600" /> Contra Transfer Mode
                 </span>
-                <span className="text-[11px] text-purple-700 font-semibold bg-purple-100 px-2 py-0.5 rounded">
-                  Does not affect Profit & Loss
+                <span className="text-[10px] text-purple-700 font-semibold bg-purple-100 px-1.5 py-0.5 rounded">
+                  Internal Transfer
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   onClick={() => setContraType('CASH_TO_BANK')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'CASH_TO_BANK'
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
+                      ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="font-bold text-xs">📥 Cash Deposit</div>
-                  <div className="text-[10px] mt-0.5 opacity-90">Cash in Hand ➔ Bank Account</div>
+                  <div className="font-bold text-[11px]">📥 Cash Deposit</div>
+                  <div className="text-[9px] opacity-80">Cash ➔ Bank</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setContraType('BANK_TO_CASH')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'BANK_TO_CASH'
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
+                      ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="font-bold text-xs">📤 Cash Withdrawal</div>
-                  <div className="text-[10px] mt-0.5 opacity-90">Bank Account ➔ Cash in Hand</div>
+                  <div className="font-bold text-[11px]">📤 Withdrawal</div>
+                  <div className="text-[9px] opacity-80">Bank ➔ Cash</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setContraType('BANK_TO_BANK')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'BANK_TO_BANK'
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
+                      ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="font-bold text-xs">🔄 Bank to Bank</div>
-                  <div className="text-[10px] mt-0.5 opacity-90">Transfer between Accounts</div>
+                  <div className="font-bold text-[11px]">🔄 Bank to Bank</div>
+                  <div className="text-[9px] opacity-80">Transfer Accounts</div>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {contraType === 'CASH_TO_BANK' ? (
                   <>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Source (Debited From)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Debited From</label>
                       <input
                         type="text"
                         disabled
-                        value="💵 Cash in Hand (Drawer)"
-                        className="w-full px-3 py-2 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
+                        value="💵 Cash in Hand"
+                        className="w-full px-2.5 py-1 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Destination Bank (Credited To)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Credited To (Bank)</label>
                       <select
                         value={toBankAccountId || ''}
                         onChange={(e) => setToBankAccountId(Number(e.target.value))}
-                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
+                        className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
                         {bankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
@@ -959,11 +1076,11 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 ) : contraType === 'BANK_TO_CASH' ? (
                   <>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Source Bank (Debited From)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Debited From (Bank)</label>
                       <select
                         value={fromBankAccountId || ''}
                         onChange={(e) => setFromBankAccountId(Number(e.target.value))}
-                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
+                        className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
                         {bankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
@@ -973,23 +1090,23 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Destination (Credited To)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Credited To</label>
                       <input
                         type="text"
                         disabled
-                        value="💵 Cash in Hand (Drawer)"
-                        className="w-full px-3 py-2 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
+                        value="💵 Cash in Hand"
+                        className="w-full px-2.5 py-1 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
                       />
                     </div>
                   </>
                 ) : (
                   <>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Source Bank (Debited From)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Debited From</label>
                       <select
                         value={fromBankAccountId || ''}
                         onChange={(e) => setFromBankAccountId(Number(e.target.value))}
-                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
+                        className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
                         {bankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
@@ -999,11 +1116,11 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Destination Bank (Credited To)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Credited To</label>
                       <select
                         value={toBankAccountId || ''}
                         onChange={(e) => setToBankAccountId(Number(e.target.value))}
-                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
+                        className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
                         {bankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
@@ -1017,66 +1134,193 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {type !== 'EXPENSE' ? (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Select {type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'Customer' : 'Supplier'} <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <select
-                      required
-                      value={partyId || ''}
-                      onChange={(e) => setPartyId(Number(e.target.value) || undefined)}
-                      className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
-                    >
-                      <option value="">-- Choose Party --</option>
-                      {parties
-                        .filter((p) =>
-                          type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE'
-                            ? p.partyType === 'CUSTOMER'
-                            : p.partyType === 'SUPPLIER'
-                        )
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} (Balance: {formatCurrency(p.currentBalance)})
+            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                {type !== 'EXPENSE' ? (
+                  <div className={firms.length > 1 ? "sm:col-span-6" : "sm:col-span-8"}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1">
+                          <User className="w-3 h-3 text-blue-600" />
+                          {type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'Customer' : 'Supplier'}
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsQuickAddParty(!isQuickAddParty);
+                            if (isQuickAddParty) {
+                              setQuickPartyName('');
+                              setQuickPartyPhone('');
+                            }
+                          }}
+                          className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
+                            isQuickAddParty
+                              ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300 shadow-2xs'
+                          }`}
+                          title={isQuickAddParty ? 'Back to party dropdown list' : 'Add new party directly here'}
+                        >
+                          {isQuickAddParty ? (
+                            <>
+                              <ArrowLeft className="w-2.5 h-2.5" />
+                              <span>Select List</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-2.5 h-2.5" />
+                              <span>+ Add Party</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {selectedParty && !isQuickAddParty && (
+                        <span className={`text-[10px] font-bold ${selectedParty.currentBalance >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          Bal: {formatCurrency(Math.abs(selectedParty.currentBalance))} {selectedParty.currentBalance >= 0 ? '(Recv)' : '(Pay)'}
+                        </span>
+                      )}
+                    </div>
+
+                    {isQuickAddParty ? (
+                      <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder={`Enter new ${type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'customer' : 'supplier'} name...`}
+                            value={quickPartyName}
+                            onChange={(e) => setQuickPartyName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleQuickCreateParty();
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 text-xs font-bold border border-blue-400 rounded-lg outline-none bg-blue-50/40 focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                          />
+                        </div>
+                        <input
+                          type="tel"
+                          placeholder="Phone (opt)"
+                          value={quickPartyPhone}
+                          onChange={(e) => setQuickPartyPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleQuickCreateParty();
+                            }
+                          }}
+                          className="w-24 sm:w-28 px-2 py-1.5 text-xs border border-slate-300 rounded-lg outline-none bg-white placeholder:text-slate-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleQuickCreateParty}
+                          disabled={!quickPartyName.trim() || isQuickAddingParty}
+                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{isQuickAddingParty ? '...' : 'Add'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsQuickAddParty(false);
+                            setQuickPartyName('');
+                            setQuickPartyPhone('');
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                          title="Cancel"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          required
+                          value={partyId || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__NEW_PARTY__') {
+                              setIsQuickAddParty(true);
+                            } else {
+                              setPartyId(Number(e.target.value) || undefined);
+                            }
+                          }}
+                          className="flex-1 px-2.5 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">-- Select Party / Customer --</option>
+                          <option value="__NEW_PARTY__" className="font-bold text-blue-700 bg-blue-50">
+                            ➕ + Add New Party / Customer...
                           </option>
-                        ))}
+                          {parties
+                            .filter((p) =>
+                              type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE'
+                                ? p.partyType === 'CUSTOMER'
+                                : p.partyType === 'SUPPLIER'
+                            )
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.phone ? `(${p.phone})` : ''} - Bal: {formatCurrency(Math.abs(p.currentBalance))} {p.currentBalance >= 0 ? '(Recv)' : '(Pay)'}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setIsQuickAddParty(true)}
+                          className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 transition-all"
+                          title="Add new customer right here"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add Party</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={firms.length > 1 ? "sm:col-span-6" : "sm:col-span-8"}>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
+                      Expense Title / Category
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rent, Tea, Electricity"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                    />
+                  </div>
+                )}
+
+                {/* Firm Selector */}
+                {firms.length > 1 && (
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
+                      🏢 Firm
+                    </label>
+                    <select
+                      value={firmId || ''}
+                      onChange={(e) => setFirmId(Number(e.target.value) || undefined)}
+                      className="w-full px-2 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white"
+                    >
+                      {firms.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name} ({f.code || 'Main'})</option>
+                      ))}
                     </select>
                   </div>
-                  {selectedParty && (
-                    <div className="text-[11px] text-slate-500 mt-1 flex justify-between">
-                      <span>Current: <b>{formatCurrency(Math.abs(selectedParty.currentBalance))}</b></span>
-                      <span className={selectedParty.currentBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                        {selectedParty.currentBalance >= 0 ? "(You'll Receive)" : "(You'll Pay)"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Expense Category / Title</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Office Rent, Electricity, Tea"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              )}
+                )}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Transaction Date</label>
-                <div className="relative">
-                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                {/* Date */}
+                <div className={firms.length > 1 ? "sm:col-span-3" : "sm:col-span-4"}>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
+                    📅 Date
+                  </label>
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full px-2 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white"
                   />
                 </div>
               </div>
@@ -1085,15 +1329,15 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
           {/* Return Reason & Original Invoice Reference for Returns */}
           {(type === 'CREDIT_NOTE' || type === 'DEBIT_NOTE') && (
-            <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
-                <label className="block font-bold text-amber-900 uppercase mb-1">
+                <label className="block font-bold text-amber-900 uppercase text-[10px] mb-0.5">
                   Reason for Return
                 </label>
                 <select
                   value={returnReason}
                   onChange={(e) => setReturnReason(e.target.value)}
-                  className="w-full p-2 bg-white border border-amber-300 rounded-lg font-semibold outline-none text-xs"
+                  className="w-full p-1.5 bg-white border border-amber-300 rounded-lg font-semibold outline-none text-xs"
                 >
                   <option value="Damaged / Defective">Damaged / Defective Goods</option>
                   <option value="Wrong Item Delivered">Wrong Item Delivered</option>
@@ -1105,102 +1349,110 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 </select>
               </div>
               <div>
-                <label className="block font-bold text-amber-900 uppercase mb-1">
+                <label className="block font-bold text-amber-900 uppercase text-[10px] mb-0.5">
                   Original {type === 'CREDIT_NOTE' ? 'Sale Invoice #' : 'Purchase Bill #'} (Optional)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. INV-1024 or BILL-402"
+                  placeholder="e.g. INV-1024"
                   value={originalVoucherNumber}
                   onChange={(e) => setOriginalVoucherNumber(e.target.value)}
-                  className="w-full p-2 bg-white border border-amber-300 rounded-lg font-mono outline-none text-xs"
+                  className="w-full p-1.5 bg-white border border-amber-300 rounded-lg font-mono outline-none text-xs"
                 />
               </div>
             </div>
           )}
 
-          {isItemBased && (
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Item Details</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsBarcodeModalOpen(true)}
-                    className="text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                    title="Scan Barcode / QR Code with camera or barcode gun"
-                  >
-                    <Barcode className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Scan Barcode</span>
-                  </button>
+          {isItemBased ? (
+            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    Items ({invoiceItems.length})
+                  </span>
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add Item Line
+                    <Plus className="w-3 h-3" /> Add Item
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsBarcodeModalOpen(true)}
+                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Scan Barcode / QR Code"
+                  >
+                    <Barcode className="w-3 h-3 text-indigo-600" />
+                    <span>Scan</span>
+                  </button>
+                </div>
+
+                {/* Direct Total Bill Amount in same compact row */}
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase">Total Bill:</label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-2 text-sm font-black text-blue-600">₹</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="any"
+                      required
+                      value={amount || ''}
+                      onChange={(e) => handleTotalAmountChange(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      className="w-28 sm:w-36 pl-6 pr-2 py-1 text-sm sm:text-base font-black text-blue-900 bg-white border border-blue-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {invoiceItems.length === 0 ? (
-                <div className="text-center py-4 text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
-                  No items added yet. Click "+ Add Item Line" or enter total amount directly below.
-                </div>
-              ) : (
-                <div className="space-y-2">
+              {/* Items row list (compact) */}
+              {invoiceItems.length > 0 && (
+                <div className="max-h-24 overflow-y-auto space-y-1 pt-1 border-t border-slate-200">
                   {invoiceItems.map((row, idx) => (
-                    <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 grid grid-cols-12 gap-2 items-center text-xs">
-                      <div className="col-span-12 sm:col-span-4">
+                    <div key={idx} className="bg-white p-1 rounded-lg border border-slate-200 grid grid-cols-12 gap-1.5 items-center text-xs">
+                      <div className="col-span-5">
                         <select
                           value={row.itemId || ''}
                           onChange={(e) => handleUpdateItemRow(idx, 'itemId', Number(e.target.value))}
-                          className="w-full p-1.5 border border-slate-200 rounded font-medium outline-none text-xs"
+                          className="w-full p-1 border border-slate-200 rounded font-medium outline-none text-[11px]"
                         >
                           <option value="">-- Choose Item --</option>
-                          {items.map((it) => {
-                            const variantDetails = [it.brand, it.size ? `Size: ${it.size}` : null, it.color ? `Col: ${it.color}` : null]
-                              .filter(Boolean)
-                              .join(' | ');
-                            return (
-                              <option key={it.id} value={it.id}>
-                                {it.name} {variantDetails ? `[${variantDetails}]` : ''} (₹{type === 'SALE' ? it.salePrice : it.purchasePrice})
-                              </option>
-                            );
-                          })}
+                          {items.map((it) => (
+                            <option key={it.id} value={it.id}>
+                              {it.name} (₹{type === 'SALE' ? it.salePrice : it.purchasePrice})
+                            </option>
+                          ))}
                         </select>
                       </div>
-
-                      <div className="col-span-4 sm:col-span-2">
+                      <div className="col-span-2">
                         <input
                           type="number"
                           min="1"
                           placeholder="Qty"
                           value={row.quantity || ''}
                           onChange={(e) => handleUpdateItemRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                          className="w-full p-1.5 border border-slate-200 rounded outline-none text-xs"
+                          className="w-full p-1 border border-slate-200 rounded outline-none text-[11px] text-center"
                         />
                       </div>
-
-                      <div className="col-span-4 sm:col-span-2">
+                      <div className="col-span-2">
                         <input
                           type="number"
-                          placeholder="Rate ₹"
+                          placeholder="Rate"
                           value={row.rate || ''}
                           onChange={(e) => handleUpdateItemRow(idx, 'rate', parseFloat(e.target.value) || 0)}
-                          className="w-full p-1.5 border border-slate-200 rounded outline-none text-xs font-semibold"
+                          className="w-full p-1 border border-slate-200 rounded outline-none text-[11px] font-semibold text-center"
                         />
                       </div>
-
-                      <div className="col-span-3 sm:col-span-3 text-right font-bold text-slate-800">
+                      <div className="col-span-2 text-right font-bold text-slate-800 text-[11px]">
                         {formatCurrency(row.total)}
                       </div>
-
-                      <div className="col-span-1 sm:col-span-1 text-center">
+                      <div className="col-span-1 text-center">
                         <button
                           type="button"
                           onClick={() => handleRemoveItemRow(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          className="p-0.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1210,120 +1462,104 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 </div>
               )}
             </div>
-          )}
-
-          <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-200/80">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-blue-900 uppercase tracking-wider">
-                Total Receipt / Bill Amount (₹) <span className="text-rose-500">*</span>
+          ) : (
+            /* Direct Amount for non-item based vouchers (PAYMENT_IN, PAYMENT_OUT, CONTRA, EXPENSE) */
+            <div className="bg-blue-50/70 p-2 sm:p-2.5 rounded-xl border border-blue-200/80 flex items-center justify-between gap-3">
+              <label className="text-xs font-bold text-blue-900 uppercase tracking-wider shrink-0">
+                Amount (₹) <span className="text-rose-500">*</span>
               </label>
-              {amount > 0 && (
-                <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
-                  {formatCurrency(amount)}
-                </span>
-              )}
+              <div className="relative flex-1 max-w-xs">
+                <span className="absolute left-3 top-1.5 text-base font-black text-blue-600">₹</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  required
+                  value={amount || ''}
+                  onChange={(e) => handleTotalAmountChange(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-1.5 text-lg font-black text-slate-900 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-right"
+                />
+              </div>
             </div>
-
-            <div className="relative">
-              <span className="absolute left-3.5 top-2.5 text-lg font-black text-blue-600">₹</span>
-              <input
-                type="number"
-                min="0.01"
-                step="any"
-                required
-                value={amount || ''}
-                onChange={(e) => handleTotalAmountChange(parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-                className="w-full pl-9 pr-4 py-2.5 text-xl font-black text-slate-900 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              />
-            </div>
-            {amount > 0 && (
-              <p className="text-xs text-blue-700/80 font-medium mt-1.5 italic">
-                {numberToWordsINR(amount)}
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Settlement / Credit Status for Invoices */}
           {isItemBased && (
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Payment Settlement Status <span className="text-rose-500">*</span>
-                </label>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                  paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Payment Settlement Status
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                   paymentStatus === 'UNPAID' ? 'bg-rose-100 text-rose-800' :
+                  paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
                   'bg-amber-100 text-amber-800'
                 }`}>
-                  {paymentStatus === 'PAID' ? '✓ 100% Paid (Immediate Cash/UPI)' :
-                   paymentStatus === 'UNPAID' ? '⚠️ 100% Credit / Udhar (Due)' :
-                   `🟡 Partial (Paid: ₹${effectivePaidAmount} | Due: ₹${balanceDue})`}
+                  {paymentStatus === 'UNPAID' ? '🔴 100% Credit (Auto-Udhar)' :
+                   paymentStatus === 'PAID' ? '🟢 100% Paid / Cash' :
+                   `🟡 Partial (Due: ₹${balanceDue})`}
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              {/* Segmented Control */}
+              <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-200/80 rounded-lg text-xs font-bold">
                 <button
                   type="button"
-                  onClick={() => handleStatusChange('PAID')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    paymentStatus === 'PAID'
-                      ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                  onClick={() => handleStatusChange('UNPAID')}
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    paymentStatus === 'UNPAID'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-bold text-xs">🟢 Paid / Cash</span>
-                    <span className="text-[10px] opacity-80 uppercase font-semibold">Immediate</span>
-                  </div>
-                  <div className="text-[10px] mt-1 opacity-90">
-                    Full payment received right now
-                  </div>
+                  <span>🔴 Credit (Udhar)</span>
+                  <span className={`text-[9px] px-1 rounded font-bold uppercase ${
+                    paymentStatus === 'UNPAID' ? 'bg-rose-700 text-white' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    Default
+                  </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleStatusChange('UNPAID')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    paymentStatus === 'UNPAID'
-                      ? 'bg-rose-600 border-rose-700 text-white shadow-sm ring-2 ring-rose-300'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                  onClick={() => handleStatusChange('PAID')}
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    paymentStatus === 'PAID'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-bold text-xs">🔴 Credit (Udhar)</span>
-                    <span className="text-[10px] opacity-80 uppercase font-semibold">Due</span>
-                  </div>
-                  <div className="text-[10px] mt-1 opacity-90">
-                    100% pending, added to party balance
-                  </div>
+                  <span>🟢 Paid / Cash</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleStatusChange('PARTIAL')}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
                     paymentStatus === 'PARTIAL'
-                      ? 'bg-amber-500 border-amber-600 text-white shadow-sm ring-2 ring-amber-300'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-bold text-xs">🟡 Partial Paid</span>
-                    <span className="text-[10px] opacity-80 uppercase font-semibold">Split</span>
-                  </div>
-                  <div className="text-[10px] mt-1 opacity-90">
-                    Advance received + balance is due
-                  </div>
+                  <span>🟡 Partial Paid</span>
                 </button>
               </div>
 
+              {/* Status summary notice / input row */}
+              {paymentStatus === 'UNPAID' && (
+                <div className="px-2 py-1 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 flex items-center justify-between">
+                  <span className="truncate">
+                    Total <b>{formatCurrency(amount)}</b> automatically credited to <b>{selectedParty?.name || 'party'}</b>'s ledger
+                  </span>
+                  <span className="font-bold text-rose-700 shrink-0 ml-1">Auto-Udhar</span>
+                </div>
+              )}
+
               {paymentStatus === 'PARTIAL' && (
-                <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg grid grid-cols-2 gap-2 text-xs items-center">
                   <div>
-                    <label className="block text-[11px] font-bold text-amber-900 uppercase mb-1">
-                      Received / Advance Amount (₹) <span className="text-rose-500">*</span>
-                    </label>
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase">Received / Advance (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -1331,29 +1567,16 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       step="any"
                       value={paidAmount || ''}
                       onChange={(e) => handlePaidAmountChange(parseFloat(e.target.value) || 0)}
-                      placeholder="e.g. 500"
-                      className="w-full p-2 text-base font-black text-emerald-700 bg-white border border-amber-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"
+                      placeholder="0"
+                      className="w-full px-2 py-1 text-sm font-black text-emerald-700 bg-white border border-amber-300 rounded outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-rose-900 uppercase mb-1">
-                      Remaining Due / Udhar (₹)
-                    </label>
-                    <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-base font-black text-rose-700 flex items-center justify-between">
-                      <span>{formatCurrency(balanceDue)}</span>
-                      <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded">
-                        Added to Ledger
-                      </span>
+                    <label className="block text-[10px] font-bold text-rose-900 uppercase">Remaining Due (Udhar)</label>
+                    <div className="px-2 py-1 bg-white border border-rose-200 rounded text-sm font-black text-rose-600">
+                      {formatCurrency(balanceDue)}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {paymentStatus === 'UNPAID' && (
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center justify-between">
-                  <span>
-                    ⚠️ Total <b>{formatCurrency(amount)}</b> will be added as pending balance due to {selectedParty?.name || 'Party'}.
-                  </span>
                 </div>
               )}
             </div>
@@ -1361,18 +1584,32 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
           {/* Payment Mode Selector - Only if money was actually paid/received */}
           {(!isItemBased || paymentStatus !== 'UNPAID') && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Payment Mode for Received Amount ({formatCurrency(effectivePaidAmount)})
+            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Payment Mode ({formatCurrency(effectivePaidAmount)})
                 </label>
+                {(paymentMode === 'UPI' || paymentMode === 'BANK') && bankAccounts.length > 0 && (
+                  <select
+                    value={bankAccountId || ''}
+                    onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
+                    className="p-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-slate-800 outline-none max-w-xs"
+                  >
+                    {bankAccounts.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.accountName} ({b.bankName})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+
+              <div className="grid grid-cols-4 gap-1.5">
                 {[
-                  { id: 'CASH', label: '💵 100% Cash' },
-                  { id: 'UPI', label: '📱 100% UPI' },
-                  { id: 'BANK', label: '🏦 100% Bank' },
-                  { id: 'SPLIT', label: '⚡ Split (Cash + UPI)' },
+                  { id: 'CASH', label: '💵 Cash' },
+                  { id: 'UPI', label: '📱 UPI' },
+                  { id: 'BANK', label: '🏦 Bank' },
+                  { id: 'SPLIT', label: '⚡ Split' },
                 ].map((m) => (
                   <button
                     key={m.id}
@@ -1385,10 +1622,10 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                         setOnlinePart(effectivePaidAmount - half);
                       }
                     }}
-                    className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                    className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                       paymentMode === m.id
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     {m.label}
@@ -1396,399 +1633,221 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 ))}
               </div>
 
-              {/* Bank Account Selector for 100% UPI or 100% Bank */}
-              {(paymentMode === 'UPI' || paymentMode === 'BANK') && bankAccounts.length > 0 && (
-                <div className="mt-2.5 p-2.5 bg-indigo-50/70 rounded-xl border border-indigo-200 flex items-center justify-between gap-2 text-xs">
-                  <span className="font-bold text-indigo-900">🏦 Target Bank Account:</span>
-                  <select
-                    value={bankAccountId || ''}
-                    onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
-                    className="p-1.5 bg-white border border-indigo-300 rounded-lg font-semibold text-slate-800 outline-none flex-1 max-w-xs"
-                  >
-                    {bankAccounts.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.accountName} ({b.bankName} - Bal: {formatCurrency(b.currentBalance)})
-                      </option>
-                    ))}
-                  </select>
+              {/* Split Details (if SPLIT) */}
+              {paymentMode === 'SPLIT' && (
+                <div className="p-2 bg-amber-50/80 rounded-lg border border-amber-200 space-y-1.5 text-xs">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase">💵 Cash Portion (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={cashPart || ''}
+                        onChange={(e) => handleCashPartChange(parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full p-1 text-sm font-bold text-emerald-700 bg-white border border-slate-300 rounded outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase">📱 Online / Bank (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={onlinePart || ''}
+                        onChange={(e) => handleOnlinePartChange(parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full p-1 text-sm font-bold text-blue-700 bg-white border border-slate-300 rounded outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={onlineMode}
+                      onChange={(e) => setOnlineMode(e.target.value as any)}
+                      className="w-full p-1 text-xs font-semibold border border-slate-300 rounded bg-white outline-none"
+                    >
+                      <option value="UPI">UPI (GPay / PhonePe)</option>
+                      <option value="BANK">Bank Transfer (NEFT/IMPS)</option>
+                      <option value="CHEQUE">Cheque</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Ref / UTR / Cheque #"
+                      value={onlineRef}
+                      onChange={(e) => setOnlineRef(e.target.value)}
+                      className="w-full p-1 text-xs border border-slate-300 rounded outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Note Denomination Collapsible Toggle & Counter */}
+              {isCashRequired && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-emerald-950">💵 Cash Counter:</span>
+                      <span className="text-[11px] font-bold text-emerald-800">
+                        {formatCurrency(totalDenomAmount)}
+                      </span>
+                      {isDenomMatched && (
+                        <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
+                          ✓ Matched
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDenomCounter(!showDenomCounter)}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{showDenomCounter ? 'Hide Note Breakdown ▴' : 'Count Notes (₹500, ₹200...) ▾'}</span>
+                    </button>
+                  </div>
+
+                  {showDenomCounter && (
+                    <div className="border border-emerald-200 rounded-xl p-2 bg-emerald-50/40 space-y-2">
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                        {[
+                          { key: 'c500', note: '₹500', val: 500 },
+                          { key: 'c200', note: '₹200', val: 200 },
+                          { key: 'c100', note: '₹100', val: 100 },
+                          { key: 'c50', note: '₹50', val: 50 },
+                          { key: 'c20', note: '₹20', val: 20 },
+                          { key: 'c10', note: '₹10', val: 10 },
+                          { key: 'c5', note: '₹5', val: 5 },
+                          { key: 'coins', note: 'Coins', val: 1, isCoin: true },
+                        ].map((d) => {
+                          const currentCount = (denoms as any)[d.key] || 0;
+                          return (
+                            <div key={d.key} className="bg-white p-1 rounded-lg border border-slate-200 text-center">
+                              <span className="block text-[10px] font-bold text-slate-600">{d.note}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="numeric"
+                                placeholder="0"
+                                value={currentCount || ''}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => handleDenomChange(d.key as any, parseInt(e.target.value) || 0)}
+                                className="w-full p-1 text-center font-bold text-xs outline-none bg-slate-50 focus:bg-white rounded"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-[11px] font-bold text-emerald-900">
+                          Total: {formatCurrency(totalDenomAmount)} ({totalDenomNotes} notes)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {targetCashAmount > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleAutoFillNotes}
+                              className="text-[10px] font-bold px-2 py-0.5 bg-white border border-emerald-300 text-emerald-800 rounded hover:bg-emerald-100 cursor-pointer"
+                            >
+                              Auto-Fill
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleClearDenoms}
+                            className="text-[10px] font-bold text-slate-500 hover:text-rose-600 px-1.5 py-0.5 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {paymentMode === 'SPLIT' && (
-            <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Split className="w-4 h-4 text-amber-600" /> Split Breakdown
+          {/* Remarks & Quick Attachments in One Line */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Remarks / Voucher note (Optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            {/* Quick Camera Snap */}
+            <label className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition-colors shrink-0 flex items-center gap-1 text-[11px] font-bold" title="Take Photo with Camera">
+              <Camera className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Camera</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleAddAttachment}
+                className="hidden"
+              />
+            </label>
+
+            {/* Gallery Upload */}
+            <label className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg cursor-pointer transition-colors shrink-0 flex items-center gap-1 text-[11px] font-bold" title="Choose from Gallery">
+              <Paperclip className="w-3.5 h-3.5 text-slate-600" />
+              {attachments.length > 0 && (
+                <span className="bg-blue-600 text-white text-[9px] px-1 py-0.2 rounded-full font-bold">
+                  {attachments.length}
                 </span>
-                <span className="text-xs font-bold text-amber-800">
-                  Total: {formatCurrency(cashPart + onlinePart)} / {formatCurrency(amount)}
-                </span>
-              </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleAddAttachment}
+                className="hidden"
+              />
+            </label>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white p-3 rounded-lg border border-amber-200">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    💵 Cash Received Portion (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={cashPart || ''}
-                    onChange={(e) => handleCashPartChange(parseFloat(e.target.value) || 0)}
-                    placeholder="e.g. 1000"
-                    className="w-full p-2 text-base font-bold text-emerald-700 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"
+          {/* Thumbnails preview strip (if any attached) */}
+          {attachments.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pt-0.5 pb-0.5">
+              {attachments.map((imgUrl, idx) => (
+                <div key={idx} className="relative group shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-slate-300 bg-white">
+                  <img
+                    src={imgUrl}
+                    alt={`Attachment ${idx + 1}`}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setViewingAttachment(imgUrl)}
                   />
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border border-amber-200">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    📱 Online / Bank Portion (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={onlinePart || ''}
-                    onChange={(e) => handleOnlinePartChange(parseFloat(e.target.value) || 0)}
-                    placeholder="e.g. 1000"
-                    className="w-full p-2 text-base font-bold text-blue-700 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Online Transfer Type</label>
-                  <select
-                    value={onlineMode}
-                    onChange={(e) => setOnlineMode(e.target.value as any)}
-                    className="w-full p-2 text-xs font-semibold border border-slate-300 rounded-lg bg-white outline-none"
-                  >
-                    <option value="UPI">UPI (GooglePay / PhonePe / Paytm)</option>
-                    <option value="BANK">Bank Transfer (NEFT / IMPS / RTGS)</option>
-                    <option value="CHEQUE">Bank Cheque</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">UPI Ref / UTR / Cheque #</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. UPI-998812345"
-                    value={onlineRef}
-                    onChange={(e) => setOnlineRef(e.target.value)}
-                    className="w-full p-2 text-xs border border-slate-300 rounded-lg outline-none font-mono"
-                  />
-                </div>
-
-                {bankAccounts.length > 0 && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Deposit To Bank Account</label>
-                    <select
-                      value={bankAccountId || ''}
-                      onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
-                      className="w-full p-2 text-xs font-semibold border border-slate-300 rounded-lg bg-white outline-none"
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(idx)}
+                      className="p-0.5 bg-rose-600 text-white rounded cursor-pointer"
+                      title="Delete attachment"
                     >
-                      {bankAccounts.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.accountName} ({b.bankName} - Bal: {formatCurrency(b.currentBalance)})
-                        </option>
-                      ))}
-                    </select>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {isCashRequired && (
-            <div className="border border-emerald-300 rounded-2xl overflow-hidden bg-emerald-50/30 p-3 sm:p-4 space-y-3">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-emerald-200/80 pb-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
-                    <Calculator className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-black text-emerald-950 text-sm tracking-tight">
-                        Cash Note Denominations
-                      </h4>
-                      {targetCashAmount > 0 && (
-                        <span className="bg-emerald-100 text-emerald-900 text-[11px] font-bold px-2 py-0.5 rounded-md border border-emerald-300">
-                          Target: {formatCurrency(targetCashAmount)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-emerald-800/80 mt-0.5">
-                      {autoSyncFromDenom 
-                        ? '⚡ Reverse Mode: Note counts automatically set the Cash Received amount'
-                        : 'Cross-Match Mode: Fill note counts to verify against target cash'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Mode Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !autoSyncFromDenom;
-                      setAutoSyncFromDenom(next);
-                      if (next && totalDenomAmount > 0) {
-                        applyDenomTotalToVoucher(totalDenomAmount);
-                      }
-                    }}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
-                      autoSyncFromDenom
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                    title="When ON, typing note counts automatically updates the Cash Received portion"
-                  >
-                    <Zap className={`w-3.5 h-3.5 ${autoSyncFromDenom ? 'fill-current text-amber-300' : 'text-slate-400'}`} />
-                    <span>{autoSyncFromDenom ? 'Auto-Take Amount: ON' : 'Auto-Take Amount: OFF'}</span>
-                  </button>
-
-                  {targetCashAmount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleAutoFillNotes}
-                      className="text-[11px] font-bold bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors cursor-pointer shadow-2xs"
-                      title="Automatically suggest highest notes to equal target cash"
-                    >
-                      Auto-Fill Notes
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleClearDenoms}
-                    className="text-[11px] font-bold text-slate-500 hover:text-rose-600 px-2 py-1 transition-colors cursor-pointer"
-                    title="Reset all note counts to 0"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              {/* Denomination Cards Grid - No +/- buttons, Maximized Space */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
-                {[
-                  { key: 'c500', note: '₹500', val: 500, labelColor: 'bg-emerald-100 text-emerald-900 border-emerald-200' },
-                  { key: 'c200', note: '₹200', val: 200, labelColor: 'bg-amber-100 text-amber-900 border-amber-200' },
-                  { key: 'c100', note: '₹100', val: 100, labelColor: 'bg-indigo-100 text-indigo-900 border-indigo-200' },
-                  { key: 'c50', note: '₹50', val: 50, labelColor: 'bg-cyan-100 text-cyan-900 border-cyan-200' },
-                  { key: 'c20', note: '₹20', val: 20, labelColor: 'bg-lime-100 text-lime-900 border-lime-200' },
-                  { key: 'c10', note: '₹10', val: 10, labelColor: 'bg-orange-100 text-orange-900 border-orange-200' },
-                  { key: 'c5', note: '₹5', val: 5, labelColor: 'bg-slate-100 text-slate-900 border-slate-200' },
-                  { key: 'coins', note: 'Coins ₹', val: 1, isCoin: true, labelColor: 'bg-yellow-100 text-yellow-900 border-yellow-200' },
-                ].map((d) => {
-                  const currentCount = (denoms as any)[d.key] || 0;
-                  const rowSubtotal = d.isCoin ? currentCount : currentCount * d.val;
-                  const hasValue = currentCount > 0;
-                  return (
-                    <div
-                      key={d.key}
-                      className={`p-2 sm:p-2.5 rounded-xl border bg-white flex flex-col justify-between transition-all ${
-                        hasValue
-                          ? 'border-emerald-500 ring-1 ring-emerald-500/20 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className={`px-2 py-0.5 rounded-md font-black text-xs border ${d.labelColor}`}>
-                          {d.note}
-                        </span>
-                        <span className={`text-[11px] font-bold font-mono ${hasValue ? 'text-emerald-700' : 'text-slate-400'}`}>
-                          {formatCurrency(rowSubtotal)}
-                        </span>
-                      </div>
-
-                      {/* Spacious Full-Width Direct Numeric Input - Tablet / Touch Ready */}
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="0"
-                        value={currentCount || ''}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) =>
-                          handleDenomChange(d.key as any, parseInt(e.target.value) || 0)
-                        }
-                        className="w-full py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-center font-black text-base sm:text-lg text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-slate-300"
-                        title={d.isCoin ? "Enter total coin value in Rupees" : `Enter number of ${d.note} notes`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Status and Action Banner */}
-              <div
-                className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-bold transition-all ${
-                  isDenomMatched
-                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                    : totalDenomAmount > 0
-                    ? 'bg-amber-50 text-amber-950 border-amber-300 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  {isDenomMatched ? (
-                    <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-                  ) : (
-                    <AlertCircle className={`w-5 h-5 shrink-0 ${totalDenomAmount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-black tracking-tight">
-                        Counted Cash: {formatCurrency(totalDenomAmount)}
-                      </span>
-                      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${isDenomMatched ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                        {totalDenomNotes} {totalDenomNotes === 1 ? 'Note' : 'Notes'}
-                      </span>
-                    </div>
-                    <span className="block text-[11px] font-normal opacity-90 mt-0.5">
-                      Target Cash: {formatCurrency(targetCashAmount)}
-                      {targetCashAmount > 0 && !isDenomMatched && totalDenomAmount > 0 && (
-                        <span className="ml-1.5 font-bold">
-                          • {denomDiff > 0 ? `Remaining: ${formatCurrency(denomDiff)}` : `Excess: ${formatCurrency(Math.abs(denomDiff))}`}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {isDenomMatched ? (
-                    <span className="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wide flex items-center gap-1.5 text-white shadow-2xs">
-                      <Check className="w-4 h-4 stroke-[3]" /> Note Count Matched
-                    </span>
-                  ) : totalDenomAmount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={handleApplyCountedCash}
-                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
-                      title="Instantly set Cash Received portion to match this counted total"
-                    >
-                      <Zap className="w-3.5 h-3.5 fill-current" />
-                      <span>Set Cash to {formatCurrency(totalDenomAmount)}</span>
-                    </button>
-                  ) : (
-                    <span className="text-slate-400 font-normal text-[11px]">
-                      Enter note counts above to calculate cash
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Remarks / Voucher Note</label>
-            <input
-              type="text"
-              placeholder="e.g. Received partial payment, bill cleared #402"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
-
-          {/* Bill & Document Photo Attachments */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Paperclip className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-bold text-slate-800">Attach Bill / Photos</span>
-              </div>
-              <span className="text-[11px] font-semibold text-slate-500">
-                {attachments.length} {attachments.length === 1 ? 'file' : 'files'} attached
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-500 leading-tight">
-              Snap a photo of vendor's bill, transport bilti slip, customer cheque, or paper receipt.
-            </p>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Mobile camera snap */}
-              <label className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs">
-                <Camera className="w-4 h-4 text-blue-600" />
-                <span>Take Photo (Camera)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleAddAttachment}
-                  className="hidden"
-                />
-              </label>
-
-              {/* Gallery / File upload */}
-              <label className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs">
-                <Paperclip className="w-4 h-4 text-slate-500" />
-                <span>Choose from Gallery</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleAddAttachment}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* Thumbnails preview strip */}
-            {attachments.length > 0 && (
-              <div className="flex gap-2.5 overflow-x-auto pt-1 pb-0.5">
-                {attachments.map((imgUrl, idx) => (
-                  <div key={idx} className="relative group shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-slate-300 bg-white shadow-xs">
-                    <img
-                      src={imgUrl}
-                      alt={`Attachment ${idx + 1}`}
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => setViewingAttachment(imgUrl)}
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => setViewingAttachment(imgUrl)}
-                        className="p-1 bg-white/80 hover:bg-white text-slate-800 rounded-md cursor-pointer"
-                        title="View full screen"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttachment(idx)}
-                        className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md cursor-pointer"
-                        title="Delete attachment"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          {/* Compact Single-Row Action Footer */}
+          <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setIsMoreOptionsSheetOpen(true)}
-                className="px-3 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                 title="More Options (Share via WhatsApp, Thermal Print)"
               >
-                <MoreVertical className="w-4 h-4 text-slate-600" />
-                <span>Options</span>
+                <MoreVertical className="w-3.5 h-3.5 text-slate-600" />
+                <span className="hidden sm:inline">Options</span>
               </button>
 
               {txToEdit && onDelete ? (
@@ -1796,55 +1855,51 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                   type="button"
                   onClick={handleDelete}
                   disabled={loading}
-                  className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Delete</span>
                 </button>
               ) : null}
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>
+            </div>
 
+            <div className="flex items-center gap-1.5">
               {/* Instant Print Button */}
               <button
                 type="button"
                 onClick={handleSaveAndPrint}
                 disabled={loading}
-                className="px-4 py-2.5 text-sm font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                title="Save voucher and instantly print thermal receipt slip"
+                className="px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                title="Save & Print Thermal Slip"
               >
-                <Printer className="w-4 h-4" />
-                <span>
-                  {type === 'PAYMENT_IN' ? 'Save & Print Receipt' :
-                   type === 'SALE' ? 'Save & Print Bill' :
-                   type === 'CREDIT_NOTE' ? 'Save & Print Return' :
-                   type === 'DEBIT_NOTE' ? 'Save & Print Debit Note' :
-                   type === 'ESTIMATE' ? 'Save & Print Estimate' :
-                   type === 'CONTRA' ? 'Save & Print Contra' :
-                   'Save & Print Slip'}
-                </span>
+                <Printer className="w-3.5 h-3.5" />
+                <span>Save & Print</span>
               </button>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2.5 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                className="px-4 py-1.5 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
               >
-                {loading ? 'Saving...' : 
-                 txToEdit ? 'Update Voucher' : 
-                 type === 'PAYMENT_IN' ? 'Save & Post Receipt' : 
-                 type === 'CREDIT_NOTE' ? 'Record Sale Return' : 
-                 type === 'DEBIT_NOTE' ? 'Record Purchase Return' : 
-                 type === 'CONTRA' ? 'Post Contra Transfer' : 
-                 'Save Voucher'}
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>
+                  {loading ? 'Saving...' : 
+                   txToEdit ? 'Update' : 
+                   type === 'SALE' ? 'Save Bill' :
+                   type === 'PAYMENT_IN' ? 'Save Receipt' : 
+                   type === 'CREDIT_NOTE' ? 'Save Return' : 
+                   type === 'DEBIT_NOTE' ? 'Save Return' : 
+                   type === 'CONTRA' ? 'Post Transfer' : 
+                   'Save Voucher'}
+                </span>
               </button>
             </div>
           </div>

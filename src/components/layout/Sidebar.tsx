@@ -133,10 +133,10 @@ export const MobileTabBar: React.FC<{
 }> = ({ activeTab, currentRole = 'Owner', onSelectTab }) => {
   const allTabs = [
     { id: 'dashboard' as NavTab, label: 'Home', icon: LayoutDashboard },
-    { id: 'items' as NavTab, label: 'Store', icon: Package },
-    { id: 'daybook' as NavTab, label: 'Daybook', icon: BookOpen },
+    { id: 'cash_tally' as NavTab, label: 'Cash Tally', icon: Calculator },
     { id: 'parties' as NavTab, label: 'Parties', icon: Users },
-    { id: 'team' as NavTab, label: 'Team', icon: Users2 },
+    { id: 'daybook' as NavTab, label: 'Daybook', icon: BookOpen },
+    { id: 'items' as NavTab, label: 'Store', icon: Package },
     { id: 'reports' as NavTab, label: 'Reports', icon: BarChart3 },
   ];
 

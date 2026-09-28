@@ -180,7 +180,53 @@ export async function mergeRemoteFirmVaultData(
     }
   }
 
-  // 4. RECOMPUTE ALL PARTY BALANCES FROM MERGED TRANSACTIONS (Guarantees 100% mathematical integrity)
+  // 4. MERGE FIRMS (Preserve Android Tablet Multi-Firm Structure)
+  for (const rFirm of remoteFirmList) {
+    let existing = await db.firms.get(rFirm.id || -1);
+    if (!existing && rFirm.name) {
+      existing = await db.firms.filter((f) => f.name.trim().toLowerCase() === rFirm.name.trim().toLowerCase()).first();
+    }
+
+    if (!existing) {
+      await db.firms.put(rFirm);
+    } else {
+      await db.firms.update(existing.id!, {
+        name: rFirm.name,
+        code: rFirm.code || existing.code,
+        phone: rFirm.phone || existing.phone,
+        address: rFirm.address || existing.address,
+        gstin: rFirm.gstin || existing.gstin,
+        isDefault: rFirm.isDefault ?? existing.isDefault,
+        firmId: rFirm.firmId || existing.firmId,
+        upiId: rFirm.upiId || existing.upiId,
+      });
+    }
+  }
+
+  // 5. MERGE BANK ACCOUNTS
+  for (const rBank of remoteBankList) {
+    let existing = await db.bankAccounts.get(rBank.id || -1);
+    if (!existing && rBank.accountName) {
+      existing = await db.bankAccounts.filter((b) => b.accountName.trim().toLowerCase() === rBank.accountName.trim().toLowerCase()).first();
+    }
+
+    if (!existing) {
+      await db.bankAccounts.put(rBank);
+    } else {
+      await db.bankAccounts.update(existing.id!, {
+        accountName: rBank.accountName,
+        bankName: rBank.bankName,
+        accountNumber: rBank.accountNumber,
+        ifscCode: rBank.ifscCode || existing.ifscCode,
+        upiId: rBank.upiId || existing.upiId,
+        currentBalance: rBank.currentBalance ?? existing.currentBalance,
+        firmId: rBank.firmId || existing.firmId,
+        firmName: rBank.firmName || existing.firmName,
+      });
+    }
+  }
+
+  // 6. RECOMPUTE ALL PARTY BALANCES FROM MERGED TRANSACTIONS (Guarantees 100% mathematical integrity)
   const allParties = await db.parties.toArray();
   for (const party of allParties) {
     if (party.id) {
@@ -188,7 +234,7 @@ export async function mergeRemoteFirmVaultData(
     }
   }
 
-  // 5. RECOMPUTE BANK BALANCES
+  // 7. RECOMPUTE BANK BALANCES
   await updateBankAccountBalances();
 
   return result;

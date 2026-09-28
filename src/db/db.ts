@@ -35,6 +35,18 @@ export class VyaparDatabase extends Dexie {
       syncQueue: '++id, entityType, entityId, action, status, timestamp, firmId',
       conflictRecords: '++id, entityType, entityIdentifier, status, detectedAt, firmId',
     });
+
+    this.version(5).stores({
+      parties: '++id, name, accountCode, phone, partyType, currentBalance, firmId',
+      transactions: '++id, voucherNumber, type, partyId, date, paymentMode, firmId, bankAccountId, importBatchId, createdAt',
+      items: '++id, name, code, category, stockQuantity',
+      businessProfile: '++id',
+      firms: '++id, name, isDefault, firmId',
+      bankAccounts: '++id, accountName, bankName, firmId',
+      coWorkers: '++id, name, phone, role, status, createdAt',
+      syncQueue: '++id, entityType, entityId, action, status, timestamp, firmId',
+      conflictRecords: '++id, entityType, entityIdentifier, status, detectedAt, firmId',
+    });
   }
 }
 

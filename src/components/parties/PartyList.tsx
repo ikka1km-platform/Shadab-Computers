@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   UserPlus, 
@@ -6,10 +6,11 @@ import {
   ArrowUpRight, 
   ChevronRight, 
   Phone,
-  MessageCircle,
-  Trash2
+  MessageCircle, 
+  Trash2,
+  Building2
 } from 'lucide-react';
-import { Party, PartyType, BusinessProfile, BankAccount, UserRole } from '../../types';
+import { Party, PartyType, BusinessProfile, BankAccount, UserRole, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { PaymentReminderModal } from '../reminders/PaymentReminderModal';
 import { canViewSupplierFinances } from '../../utils/userSession';
@@ -18,6 +19,7 @@ interface PartyListProps {
   parties: Party[];
   profile?: BusinessProfile;
   bankAccounts?: BankAccount[];
+  firms?: Firm[];
   currentRole?: 'Owner' | UserRole;
   initialFilter?: 'CUSTOMER' | 'SUPPLIER' | 'ALL' | 'RECEIVABLE' | 'PAYABLE';
   onSelectParty: (party: Party) => void;
@@ -29,6 +31,7 @@ export const PartyList: React.FC<PartyListProps> = ({
   parties,
   profile,
   bankAccounts = [],
+  firms = [],
   currentRole = 'Owner',
   initialFilter = 'CUSTOMER',
   onSelectParty,
@@ -39,8 +42,15 @@ export const PartyList: React.FC<PartyListProps> = ({
   const [filterType, setFilterType] = useState<string>(
     initialFilter === 'RECEIVABLE' ? 'RECEIVABLE' : initialFilter === 'PAYABLE' ? 'PAYABLE' : initialFilter
   );
+  const [selectedFirmId, setSelectedFirmId] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [partyToRemind, setPartyToRemind] = useState<Party | null>(null);
+
+  useEffect(() => {
+    if (initialFilter) {
+      setFilterType(initialFilter);
+    }
+  }, [initialFilter]);
 
   const filteredParties = parties
     .filter((p) => {
@@ -50,11 +60,16 @@ export const PartyList: React.FC<PartyListProps> = ({
       else if (filterType === 'RECEIVABLE') matchesType = p.partyType === 'CUSTOMER' && p.currentBalance > 0;
       else if (filterType === 'PAYABLE') matchesType = p.partyType === 'SUPPLIER' && p.currentBalance < 0;
 
+      let matchesFirm = true;
+      if (selectedFirmId !== 'ALL') {
+        matchesFirm = p.firmId === Number(selectedFirmId);
+      }
+
       const matchesSearch =
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.accountCode?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesType && matchesSearch;
+      return matchesType && matchesFirm && matchesSearch;
     })
     .sort((a, b) => {
       if (filterType === 'CUSTOMER' || filterType === 'RECEIVABLE') {
@@ -136,6 +151,40 @@ export const PartyList: React.FC<PartyListProps> = ({
           </div>
         )}
       </div>
+
+      {/* Firm Filter Selector (when multiple firms exist) */}
+      {firms && firms.length > 1 && (
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl overflow-x-auto">
+          <span className="text-[11px] font-bold text-slate-500 pl-2 pr-1 flex items-center gap-1 shrink-0">
+            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+            Firm:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedFirmId('ALL')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 cursor-pointer ${
+              selectedFirmId === 'ALL' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            All Firms ({parties.length})
+          </button>
+          {firms.map((f) => {
+            const count = parties.filter((p) => p.firmId === f.id).length;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setSelectedFirmId(String(f.id))}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 cursor-pointer ${
+                  selectedFirmId === String(f.id) ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {f.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl gap-1">
@@ -224,9 +273,33 @@ export const PartyList: React.FC<PartyListProps> = ({
                       {p.name}
                       <span className="text-[10px] text-slate-400 font-mono font-normal">#{p.accountCode}</span>
                     </div>
-                    <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <Phone className="w-3 h-3" />
-                      <span>{p.phone || 'No phone'}</span>
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {p.phone ? (
+                        <a
+                          href={`tel:${p.phone}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="inline-flex items-center gap-1 font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 px-1.5 py-0.5 rounded-md transition-colors border border-slate-200 hover:border-emerald-300"
+                          title={`Click to call ${p.phone} directly`}
+                        >
+                          <Phone className="w-3 h-3 text-emerald-600" />
+                          <span className="underline decoration-slate-300 hover:decoration-emerald-500">{p.phone}</span>
+                          <span className="text-[9px] bg-emerald-600 text-white px-1 py-0.2 rounded font-black tracking-wider uppercase ml-0.5">
+                            Call
+                          </span>
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Phone className="w-3 h-3" />
+                          <span>No phone</span>
+                        </span>
+                      )}
+                      {p.firmName && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+                          🏢 {p.firmName}
+                        </span>
+                      )}
                       {p.address && (
                         <>
                           <span>&bull;</span>
@@ -237,7 +310,7 @@ export const PartyList: React.FC<PartyListProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <div className="text-right">
                     <div className={`font-black text-sm md:text-base ${
                       isReceivable ? 'text-emerald-600' : isPayable ? 'text-rose-600' : 'text-slate-700'
@@ -248,6 +321,19 @@ export const PartyList: React.FC<PartyListProps> = ({
                       {isReceivable ? "You'll Receive" : isPayable ? "You'll Give" : 'Settled (0.00)'}
                     </div>
                   </div>
+
+                  {/* Direct Phone Call Button */}
+                  {p.phone && (
+                    <a
+                      href={`tel:${p.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg border border-blue-200 transition-colors shadow-2xs cursor-pointer"
+                      title={`Call ${p.name} (${p.phone}) directly`}
+                    >
+                      <Phone className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="hidden sm:inline">Call</span>
+                    </a>
+                  )}
 
                   {isReceivable && (
                     <button
@@ -293,6 +379,7 @@ export const PartyList: React.FC<PartyListProps> = ({
           party={partyToRemind}
           profile={profile}
           bankAccounts={bankAccounts}
+          firms={firms}
         />
       )}
     </div>

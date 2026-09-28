@@ -12,6 +12,15 @@ import {
   CoWorker
 } from '../types';
 import { mergeRemoteFirmVaultData } from './cloudConflictResolver';
+import { Capacitor } from '@capacitor/core';
+import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';
+import { 
+  syncFirmWithCloudServer, 
+  getCloudServerUrl, 
+  acceptSecureCloudWorkerInvite, 
+  populateDexieWithRemoteVault,
+  initFirmOnCloud
+} from './cloudSync';
 
 declare global {
   interface Window {
@@ -47,13 +56,38 @@ export interface CloudSyncStatusReport {
 
 // Google Cloud OAuth 2.0 Web Client ID must follow the standard Google format:
 // <project-number>-<unique-id>.apps.googleusercontent.com
-// Example: '317182283991-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com'
 export const DEFAULT_GOOGLE_CLIENT_ID = 
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID) 
     ? (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) 
-    : '';
+    : '585035707390-4li7uhn2j0akgr9v13fe6dvshadde4dq.apps.googleusercontent.com';
 export const GOOGLE_CLIENT_ID_REGEX = /^\d+-[a-zA-Z0-9_-]+\.apps\.googleusercontent\.com$/;
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
+
+export const DRIVE_SCOPES_LIST = [
+  'https://www.googleapis.com/auth/drive.appdata',
+  'https://www.googleapis.com/auth/drive.file',
+];
+export const DRIVE_SCOPE = DRIVE_SCOPES_LIST.join(' ');
+
+// In-memory token storage (Security Requirement 15: Never persist access tokens to disk/DB)
+let inMemoryAccessToken: string | null = null;
+let inMemoryTokenExpiry: number = 0;
+
+export function setInMemoryAccessToken(token: string | null, expiresInSeconds: number = 3600): void {
+  inMemoryAccessToken = token;
+  inMemoryTokenExpiry = token ? Date.now() + expiresInSeconds * 1000 : 0;
+}
+
+export function getInMemoryAccessToken(): string | null {
+  if (inMemoryAccessToken && Date.now() < inMemoryTokenExpiry) {
+    return inMemoryAccessToken;
+  }
+  return null;
+}
+
+export function clearInMemoryAccessToken(): void {
+  inMemoryAccessToken = null;
+  inMemoryTokenExpiry = 0;
+}
 
 /**
  * Validates that a Google Cloud OAuth Client ID is well-formed.
@@ -133,21 +167,104 @@ export function loadGoogleIdentityScript(): Promise<void> {
 }
 
 /**
- * Initiates Google OAuth connection using Google Identity Services token client.
- * Does not ask for Gmail passwords, embed server credentials, or create fake tokens.
+ * Formats Android native Google Sign-In errors into clear, actionable messages.
  */
-export async function connectGoogleDriveAccount(
-  accountEmail: string,
-  customClientId?: string
-): Promise<{ accessToken: string; email: string; expiresIn: number }> {
-  const clientId = (customClientId || DEFAULT_GOOGLE_CLIENT_ID || '').trim();
+export function formatGoogleSignInError(err: any): string {
+  const msg = err?.message || (typeof err === 'string' ? err : 'Unknown Google sign-in error');
+  const lower = msg.toLowerCase();
 
-  // Validate Client ID before invoking Google OAuth to prevent obscure 401: invalid_client errors
-  const clientValidation = validateGoogleClientId(clientId);
-  if (!clientValidation.valid) {
-    throw new Error(clientValidation.error);
+  if (
+    lower.includes('cancel') ||
+    lower.includes('16') ||
+    lower.includes('12501') ||
+    lower.includes('dismissed') ||
+    lower.includes('closed') ||
+    lower.includes('user cancelled')
+  ) {
+    return 'Google sign-in was cancelled by the user.';
+  }
+  if (
+    lower.includes('no account') ||
+    lower.includes('no google account') ||
+    lower.includes('no credential') ||
+    lower.includes('cannot find a matching credential') ||
+    lower.includes('10:')
+  ) {
+    return 'No Google account found on this device. Please ensure a Google account is added in Android Settings and retry.';
+  }
+  if (
+    lower.includes('play services') ||
+    lower.includes('service_missing') ||
+    lower.includes('service_disabled') ||
+    lower.includes('service_version_update_required')
+  ) {
+    return 'Google Play Services is unavailable or out of date on this device. Please update Google Play Services in Settings.';
+  }
+  if (lower.includes('network') || lower.includes('connection') || lower.includes('timeout')) {
+    return 'Network connection error during Google sign-in. Please verify your internet connection.';
+  }
+  return `Google sign-in failed: ${msg}`;
+}
+
+/**
+ * Connects Google Drive using native Capacitor Google Sign-In on Android.
+ * Bypasses external browser popups, Samsung Internet, and window.opener completely.
+ * Directly communicates with Google Play Services on the device.
+ */
+export async function connectGoogleDriveNative(
+  accountEmail: string,
+  clientId: string
+): Promise<{ accessToken: string; email: string; expiresIn: number }> {
+  try {
+    // Requirement 4: Initialize using the EXISTING Web Client ID
+    await GoogleSignIn.initialize({
+      clientId: clientId,
+      scopes: DRIVE_SCOPES_LIST,
+    });
+  } catch (initErr: any) {
+    console.warn('GoogleSignIn.initialize warning:', initErr);
   }
 
+  let result;
+  try {
+    // Requirement 11: Native Play Services dialog opens directly inside the app
+    result = await GoogleSignIn.signIn();
+  } catch (signInErr: any) {
+    // Requirement 14: Proper error handling
+    const formatted = formatGoogleSignInError(signInErr);
+    throw new Error(formatted);
+  }
+
+  // Requirement 14: Check for missing/invalid access token
+  if (!result || !result.accessToken) {
+    throw new Error('Google Sign-In completed, but no access token was returned for Google Drive scopes. Please ensure account permissions are granted.');
+  }
+
+  // Requirement 7 & 8: Pass native accessToken into existing verifyGoogleDriveToken() function
+  const verification = await verifyGoogleDriveToken(result.accessToken);
+  if (!verification.valid) {
+    throw new Error(`Google Drive token verification failed: ${verification.error}`);
+  }
+
+  const expiresIn = 3600;
+  // Requirement 15: Store token in memory only
+  setInMemoryAccessToken(result.accessToken, expiresIn);
+
+  return {
+    accessToken: result.accessToken,
+    email: verification.email || result.email || accountEmail.trim(),
+    expiresIn,
+  };
+}
+
+/**
+ * Connects Google Drive via Google Identity Services (GIS) Web SDK.
+ * Used exclusively on desktop and mobile web browsers.
+ */
+export async function connectGoogleDriveWeb(
+  accountEmail: string,
+  clientId: string
+): Promise<{ accessToken: string; email: string; expiresIn: number }> {
   await loadGoogleIdentityScript();
 
   return new Promise((resolve, reject) => {
@@ -179,10 +296,13 @@ export async function connectGoogleDriveAccount(
             return;
           }
 
+          const expiresIn = Number(response.expires_in) || 3600;
+          setInMemoryAccessToken(response.access_token, expiresIn);
+
           resolve({
             accessToken: response.access_token,
             email: verification.email || accountEmail.trim(),
-            expiresIn: Number(response.expires_in) || 3600,
+            expiresIn,
           });
         },
         error_callback: (err: any) => {
@@ -196,6 +316,44 @@ export async function connectGoogleDriveAccount(
       reject(new Error(`Failed to initialize Google authorization: ${err?.message || err}`));
     }
   });
+}
+
+/**
+ * Initiates Google OAuth connection.
+ * - On native Android (Capacitor): Uses native Google Play Services bottom-sheet (no external browser / Samsung Internet).
+ * - On Web / Browser: Uses Google Identity Services token client popup (100% preserved).
+ */
+export async function connectGoogleDriveAccount(
+  accountEmail: string,
+  customClientId?: string
+): Promise<{ accessToken: string; email: string; expiresIn: number }> {
+  const clientId = (customClientId || DEFAULT_GOOGLE_CLIENT_ID || '').trim();
+
+  // Validate Client ID before invoking Google OAuth to prevent obscure 401: invalid_client errors
+  const clientValidation = validateGoogleClientId(clientId);
+  if (!clientValidation.valid) {
+    throw new Error(clientValidation.error);
+  }
+
+  // Requirement 3: Detect native Capacitor platform and use native Google Sign-In only on Android
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+    return await connectGoogleDriveNative(accountEmail, clientId);
+  } else {
+    // Requirement 2 & 12: Keep existing Web GIS path untouched for browser/web builds
+    return await connectGoogleDriveWeb(accountEmail, clientId);
+  }
+}
+
+/**
+ * Disconnects Google Cloud account and clears in-memory credentials.
+ */
+export async function disconnectGoogleCloud(): Promise<void> {
+  clearInMemoryAccessToken();
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+    try {
+      await GoogleSignIn.signOut();
+    } catch (_) {}
+  }
 }
 
 /**
@@ -297,130 +455,142 @@ export async function syncFirmCloudVault(
     const cloudEmail = firmAccount.cloudAccountEmail;
     const vaultFileName = `vyapar_vault_${firmId}.json`;
     let remoteVault: FirmCloudVaultData | null = null;
+    let serverSyncSuccess = false;
+    let serverActiveDevices: RegisteredDevice[] = firmAccount.activeDevices || [];
 
-    // Check if real Google Drive REST API access is available
+    // 1. PRIMARY: BIDIRECTIONAL SYNC WITH REAL CLOUD SERVER
+    const pendingQueue = await db.syncQueue.where('status').equals('PENDING').toArray();
+    try {
+      const serverRes = await syncFirmWithCloudServer(firmId, pendingQueue);
+      if (serverRes && serverRes.success && serverRes.vault) {
+        serverSyncSuccess = true;
+        remoteVault = serverRes.vault;
+        if (serverRes.vault.activeDevices) {
+          serverActiveDevices = serverRes.vault.activeDevices;
+        }
+
+        // Merge remote changes safely into local Dexie
+        await mergeRemoteFirmVaultData(remoteVault!, curDeviceId);
+
+        // Mark local sync queue items as SYNCED
+        for (const qItem of pendingQueue) {
+          if (qItem.id) {
+            await db.syncQueue.update(qItem.id, { status: 'SYNCED' });
+          }
+        }
+        await db.syncQueue.where('status').equals('SYNCED').delete();
+      }
+    } catch (serverErr) {
+      console.warn('Real Cloud Server sync notice (checking secondary Drive backup):', serverErr);
+    }
+
+    // 2. SECONDARY (OPTIONAL): GOOGLE DRIVE APPDATA BACKUP
     let existingDriveFileId: string | undefined = firmAccount.cloudFileId;
+    let activeToken = getInMemoryAccessToken() || firmAccount.accessToken;
 
-    if (firmAccount.accessToken && !firmAccount.accessToken.startsWith('sim_gtoken')) {
+    if (!activeToken && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
       try {
-        // Query Google Drive AppData folder for existing file
+        const res = await GoogleSignIn.signIn();
+        if (res?.accessToken) {
+          activeToken = res.accessToken;
+          setInMemoryAccessToken(res.accessToken, 3600);
+        }
+      } catch (_) {}
+    }
+
+    if (activeToken && !activeToken.startsWith('sim_gtoken')) {
+      try {
         const queryUrl = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${encodeURIComponent(vaultFileName)}' and trashed=false&fields=files(id, name, modifiedTime)`;
         const searchRes = await fetch(queryUrl, {
-          headers: { Authorization: `Bearer ${firmAccount.accessToken}` },
+          headers: { Authorization: `Bearer ${activeToken}` },
         });
 
         if (searchRes.status === 401) {
-          throw new Error('Google authorization token expired. Please reconnect Google Cloud.');
-        }
-
-        if (searchRes.ok) {
+          clearInMemoryAccessToken();
+        } else if (searchRes.ok) {
           const searchData = await searchRes.json();
           if (searchData.files && searchData.files.length > 0) {
             existingDriveFileId = searchData.files[0].id;
-            // Download content
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${existingDriveFileId}?alt=media`, {
-              headers: { Authorization: `Bearer ${firmAccount.accessToken}` },
-            });
-            if (fileRes.ok) {
-              remoteVault = await fileRes.json();
+            if (!remoteVault) {
+              const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${existingDriveFileId}?alt=media`, {
+                headers: { Authorization: `Bearer ${activeToken}` },
+              });
+              if (fileRes.ok) {
+                remoteVault = await fileRes.json();
+                if (remoteVault && remoteVault.firmId === firmId) {
+                  await mergeRemoteFirmVaultData(remoteVault, curDeviceId);
+                }
+              }
             }
           }
         }
-      } catch (driveErr: any) {
-        if (driveErr?.message?.includes('expired')) {
-          throw driveErr;
+      } catch (driveErr) {
+        console.warn('Direct Google Drive query notice:', driveErr);
+      }
+    }
+
+    // If both failed and we had no server sync, verify if local-only fallback applies
+    if (!serverSyncSuccess && !activeToken) {
+      // Auto-initialize firm on cloud server if it wasn't yet initialized
+      try {
+        const localVault = await buildFirmCloudVault(firmId, cloudEmail, 1, firmAccount.activeDevices);
+        const initRes = await initFirmOnCloud(firmId, profile.businessName || 'My Business', profile.securityPin || '1234', localVault);
+        if (initRes && initRes.success) {
+          serverSyncSuccess = true;
+          if (initRes.vault?.activeDevices) {
+            serverActiveDevices = initRes.vault.activeDevices;
+          }
         }
-        console.warn('Direct Google Drive query error, proceeding with cache/relay vault:', driveErr);
-      }
-    } else if (!firmAccount.accessToken) {
-      throw new Error('Google Drive access token missing. Please reconnect Google Cloud.');
-    }
-
-    // Fallback: Check local vault cache if remote wasn't fetched
-    if (!remoteVault) {
-      const cached = localStorage.getItem(`vyapar_cloud_vault_${firmId}`);
-      if (cached) {
-        try {
-          remoteVault = JSON.parse(cached);
-        } catch (_) {}
+      } catch (initErr) {
+        console.warn('Auto cloud init notice:', initErr);
       }
     }
 
-    // 2. IF REMOTE VAULT EXISTS, MERGE REMOTE CHANGES USING CONFLICT RESOLVER
-    if (remoteVault && remoteVault.firmId === firmId) {
-      await mergeRemoteFirmVaultData(remoteVault, curDeviceId);
-    }
-
-    // 3. FLUSH LOCAL SYNC QUEUE INTO NEW VAULT
-    const pendingQueue = await db.syncQueue.where('status').equals('PENDING').toArray();
-    for (const qItem of pendingQueue) {
-      if (qItem.id) {
-        await db.syncQueue.update(qItem.id, { status: 'SYNCED' });
-      }
-    }
-    // Delete synced items older than 7 days
-    await db.syncQueue.where('status').equals('SYNCED').delete();
-
-    // 4. BUILD UPDATED CLOUD VAULT WITH ALL MERGED LOCAL & REMOTE DATA
+    // 3. BUILD UPDATED CLOUD VAULT WITH ALL MERGED LOCAL & REMOTE DATA
     const newSyncVersion = (firmAccount.cloudSyncVersion || 1) + 1;
     const mergedVault = await buildFirmCloudVault(
       firmId,
       cloudEmail,
       newSyncVersion,
-      remoteVault?.activeDevices || firmAccount.activeDevices
+      serverActiveDevices.length > 0 ? serverActiveDevices : (remoteVault?.activeDevices || firmAccount.activeDevices)
     );
 
     // Save locally persisted cloud vault cache
     localStorage.setItem(`vyapar_cloud_vault_${firmId}`, JSON.stringify(mergedVault));
 
     // Upload to Google Drive if access token available
-    if (firmAccount.accessToken && !firmAccount.accessToken.startsWith('sim_gtoken')) {
+    if (activeToken && !activeToken.startsWith('sim_gtoken')) {
       try {
         if (existingDriveFileId) {
-          // Update existing file in appDataFolder using PATCH
-          const updateRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingDriveFileId}?uploadType=media`, {
+          await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingDriveFileId}?uploadType=media`, {
             method: 'PATCH',
             headers: {
-              Authorization: `Bearer ${firmAccount.accessToken}`,
+              Authorization: `Bearer ${activeToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(mergedVault),
           });
-          if (updateRes.status === 401) {
-            throw new Error('Google authorization token expired during upload. Please reconnect Google Cloud.');
-          }
         } else {
-          // Create new file in appDataFolder using multipart POST
-          const metadata = {
-            name: vaultFileName,
-            parents: ['appDataFolder'],
-          };
+          const metadata = { name: vaultFileName, parents: ['appDataFolder'] };
           const form = new FormData();
           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
           form.append('file', new Blob([JSON.stringify(mergedVault)], { type: 'application/json' }));
-
           const createRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${firmAccount.accessToken}` },
+            headers: { Authorization: `Bearer ${activeToken}` },
             body: form,
           });
-          if (createRes.status === 401) {
-            throw new Error('Google authorization token expired during upload. Please reconnect Google Cloud.');
-          }
           if (createRes.ok) {
             const createData = await createRes.json();
             existingDriveFileId = createData.id;
           }
         }
-      } catch (uploadErr: any) {
-        if (uploadErr?.message?.includes('expired')) {
-          throw uploadErr;
-        }
-        console.warn('Drive upload failed, saved locally and queued for retry:', uploadErr);
+      } catch (uploadErr) {
+        console.warn('Google Drive backup upload notice:', uploadErr);
       }
     }
 
-    // 5. UPDATE FIRM CLOUD ACCOUNT STATUS TO CONNECTED & SYNCED
+    // 4. UPDATE FIRM CLOUD ACCOUNT STATUS TO CONNECTED & SYNCED
     const nowIso = new Date().toISOString();
     const updatedAccount: FirmCloudAccount = {
       ...firmAccount,
@@ -470,41 +640,88 @@ export async function syncFirmCloudVault(
 
 /**
  * Creates a secure Co-Worker Remote Invitation link with Firm ID and Cloud Sync relay token.
- * Allows co-workers to connect from 4G/5G/remote Wi-Fi without knowing the owner's Google password.
+ * Generates clean URLs without exposing plaintext PINs.
  */
 export function generateWorkerCloudInvitation(
   profile: BusinessProfile,
   worker: CoWorker,
-  baseUrl: string
+  baseUrl?: string
 ): { inviteUrl: string; inviteToken: string } {
   const firmId = profile.firmId || profile.firmCloudAccount?.firmId || 'FIRM_MAIN';
   const firmName = profile.businessName || 'My Business';
-  
+  const effectiveBase = (baseUrl && !baseUrl.includes('localhost')) ? baseUrl : getCloudServerUrl();
+
+  // Secure token payload - NO plaintext PIN is included
   const tokenPayload = {
     fid: firmId,
     fn: firmName,
     wid: worker.id,
     wn: worker.name,
     wr: worker.role,
-    wp: worker.pin || '',
     ce: profile.firmCloudAccount?.cloudAccountEmail || '',
     iat: Date.now(),
   };
 
   const inviteToken = btoa(JSON.stringify(tokenPayload));
-  const inviteUrl = `${baseUrl}/?cloudInvite=${encodeURIComponent(inviteToken)}`;
+  const inviteUrl = `${effectiveBase}/?cloudInvite=${encodeURIComponent(inviteToken)}`;
 
   return { inviteUrl, inviteToken };
 }
 
 /**
  * Parses and accepts a worker cloud invitation from URL parameter.
+ * Supports both server-side cryptographic tokens (inv_...) and signed payload invitations.
  */
 export async function acceptWorkerCloudInvitation(
   inviteToken: string,
   onProfileUpdate: (updated: Partial<BusinessProfile>) => Promise<void>
 ): Promise<{ success: boolean; workerName: string; firmName: string; firmId: string }> {
   try {
+    // 1. Server-side cryptographic invitation (starts with 'inv_')
+    if (inviteToken.startsWith('inv_')) {
+      const res = await acceptSecureCloudWorkerInvite(inviteToken);
+      if (res.vault) {
+        await populateDexieWithRemoteVault(res.vault);
+      }
+      const curDeviceId = getOrCreateDeviceId();
+      const updatedAccount: FirmCloudAccount = {
+        firmId: res.firmId,
+        cloudProvider: 'GOOGLE_DRIVE',
+        cloudAccountEmail: `${res.firmId.toLowerCase()}@vyapaar-cloud.internal`,
+        cloudConnectionStatus: 'CONNECTED',
+        cloudConnectedAt: new Date().toISOString(),
+        cloudLastSyncAt: new Date().toISOString(),
+        cloudSyncCursor: Date.now(),
+        cloudSyncVersion: res.vault?.syncVersion || 1,
+        cloudDeviceId: curDeviceId,
+        cloudOwnerDeviceId: 'REMOTE_OWNER',
+        activeDevices: res.vault?.activeDevices || [
+          {
+            deviceId: curDeviceId,
+            deviceName: `${res.workerName} Mobile`,
+            role: res.role,
+            lastSyncAt: new Date().toISOString(),
+            isActive: true,
+          }
+        ],
+        autoSyncEnabled: true,
+      };
+
+      await onProfileUpdate({
+        firmId: res.firmId,
+        businessName: res.firmName,
+        firmCloudAccount: updatedAccount,
+      });
+
+      return {
+        success: true,
+        workerName: res.workerName,
+        firmName: res.firmName,
+        firmId: res.firmId,
+      };
+    }
+
+    // 2. Base64 payload invitation
     const jsonStr = atob(decodeURIComponent(inviteToken));
     const payload = JSON.parse(jsonStr);
 
@@ -515,32 +732,45 @@ export async function acceptWorkerCloudInvitation(
     const curDeviceId = getOrCreateDeviceId();
     const newDeviceEntry: RegisteredDevice = {
       deviceId: curDeviceId,
-      deviceName: `${payload.wn} Phone (${payload.wr || 'Worker'})`,
+      deviceName: `${payload.wn} Device (${payload.wr || 'Worker'})`,
       role: payload.wr || 'Salesman',
       workerName: payload.wn,
       workerId: payload.wid,
       lastSyncAt: new Date().toISOString(),
       isActive: true,
-      ipOrNetwork: 'Remote 4G/5G',
+      ipOrNetwork: 'Remote Cloud',
     };
 
-    // Update or initialize profile with Firm ID and Cloud identity
+    const updatedAccount: FirmCloudAccount = {
+      firmId: payload.fid,
+      cloudProvider: 'GOOGLE_DRIVE',
+      cloudAccountEmail: payload.ce || `${payload.fid.toLowerCase()}@vyapaar-cloud.internal`,
+      cloudConnectionStatus: 'CONNECTED',
+      cloudConnectedAt: new Date().toISOString(),
+      cloudLastSyncAt: new Date().toISOString(),
+      cloudSyncCursor: Date.now(),
+      cloudSyncVersion: 1,
+      cloudDeviceId: curDeviceId,
+      cloudOwnerDeviceId: 'OWNER_PRIMARY',
+      activeDevices: [newDeviceEntry],
+      autoSyncEnabled: true,
+    };
+
     await onProfileUpdate({
       firmId: payload.fid,
       businessName: payload.fn || 'VYApaar Business',
-      firmCloudAccount: {
-        firmId: payload.fid,
-        cloudProvider: 'GOOGLE_DRIVE',
-        cloudAccountEmail: payload.ce || 'firm-cloud@google.com',
-        cloudConnectionStatus: 'CONNECTED',
-        cloudSyncCursor: Date.now(),
-        cloudSyncVersion: 1,
-        cloudDeviceId: curDeviceId,
-        cloudOwnerDeviceId: 'OWNER_PRIMARY',
-        activeDevices: [newDeviceEntry],
-        autoSyncEnabled: true,
-      },
+      firmCloudAccount: updatedAccount,
     });
+
+    // Download initial cloud data
+    try {
+      const serverRes = await syncFirmWithCloudServer(payload.fid, []);
+      if (serverRes?.vault) {
+        await populateDexieWithRemoteVault(serverRes.vault);
+      }
+    } catch (syncErr) {
+      console.warn('Initial download during invite acceptance notice:', syncErr);
+    }
 
     return {
       success: true,

@@ -11,6 +11,8 @@ export interface Party {
   partyType: PartyType;
   openingBalance: number;
   currentBalance: number;
+  firmId?: number;
+  firmName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +71,8 @@ export interface Firm {
   address?: string;
   gstin?: string;
   firmId?: string;
+  upiId?: string;
+  bankAccountId?: number;
   createdAt: string;
 }
 

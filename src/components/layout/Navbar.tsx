@@ -1,4 +1,4 @@
-import { PlusCircle, Settings, Building2, Landmark, RefreshCw, Lock, Printer, Users2, Globe2, ShieldCheck, User, Tablet, Cloud, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Settings, Building2, Landmark, RefreshCw, Lock, Printer, Users2, Globe2, ShieldCheck, User, Tablet, Cloud, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { BusinessProfile, CloudConnectionStatus } from '../../types';
 import { useThermalPrinters } from '../../utils/printerStorage';
 import { UserSession } from '../../utils/userSession';
@@ -6,6 +6,8 @@ import { UserSession } from '../../utils/userSession';
 interface NavbarProps {
   profile?: BusinessProfile;
   activeSession?: UserSession;
+  canGoBack?: boolean;
+  onGoBack?: () => void;
   onOpenQuickTx: () => void;
   onOpenSettings: () => void;
   onOpenBanking?: () => void;
@@ -27,6 +29,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   profile,
   activeSession,
+  canGoBack,
+  onGoBack,
   onOpenQuickTx,
   onOpenSettings,
   onOpenBanking,
@@ -51,6 +55,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
         {/* Left: Brand / Company Info */}
         <div className="flex items-center gap-2 min-w-0">
+          {canGoBack && onGoBack && (
+            <button
+              type="button"
+              onClick={onGoBack}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-extrabold shrink-0 border border-slate-300 shadow-2xs"
+              title="Go Back to Previous Screen (Swipe Left/Right)"
+            >
+              <ArrowLeft className="w-4 h-4 text-blue-600" />
+              <span>Back</span>
+            </button>
+          )}
           <div 
             onClick={onOpenNewCompany}
             className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-sm cursor-pointer hover:opacity-90 shrink-0"

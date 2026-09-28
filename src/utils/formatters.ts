@@ -10,8 +10,10 @@ export function formatCurrency(amount: number, symbol: string = '₹'): string {
 }
 
 export function formatDate(dateString: string): string {
+  if (!dateString || dateString === 'ALL') return 'All Dates';
   try {
     const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
     return d.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',

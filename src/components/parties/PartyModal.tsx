@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Phone, MapPin, Hash, Trash2 } from 'lucide-react';
-import { Party, PartyType } from '../../types';
+import { X, User, Phone, MapPin, Hash, Trash2, Building2, ArrowLeft } from 'lucide-react';
+import { Party, PartyType, Firm } from '../../types';
 
 interface PartyModalProps {
   isOpen: boolean;
@@ -9,6 +9,7 @@ interface PartyModalProps {
   onDelete?: (id: number) => Promise<void> | void;
   partyToEdit?: Party | null;
   defaultType?: PartyType;
+  firms?: Firm[];
 }
 
 export const PartyModal: React.FC<PartyModalProps> = ({
@@ -18,6 +19,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
   onDelete,
   partyToEdit,
   defaultType = 'CUSTOMER',
+  firms = [],
 }) => {
   const [name, setName] = useState('');
   const [accountCode, setAccountCode] = useState('');
@@ -28,6 +30,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
   const [partyType, setPartyType] = useState<PartyType>(defaultType);
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [balanceType, setBalanceType] = useState<'RECEIVE' | 'PAY'>('RECEIVE');
+  const [firmId, setFirmId] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,6 +44,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       setPartyType(partyToEdit.partyType);
       setOpeningBalance(Math.abs(partyToEdit.openingBalance));
       setBalanceType(partyToEdit.openingBalance >= 0 ? 'RECEIVE' : 'PAY');
+      setFirmId(partyToEdit.firmId);
     } else {
       setName('');
       setAccountCode(`ACC-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -51,8 +55,10 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       setPartyType(defaultType);
       setOpeningBalance(0);
       setBalanceType(defaultType === 'CUSTOMER' ? 'RECEIVE' : 'PAY');
+      const defFirm = firms.find((f) => f.isDefault) || firms[0];
+      setFirmId(defFirm?.id);
     }
-  }, [partyToEdit, defaultType, isOpen]);
+  }, [partyToEdit, defaultType, isOpen, firms]);
 
   if (!isOpen) return null;
 
@@ -63,6 +69,7 @@ export const PartyModal: React.FC<PartyModalProps> = ({
     setLoading(true);
     try {
       const finalOpeningBalance = balanceType === 'RECEIVE' ? Number(openingBalance) : -Number(openingBalance);
+      const selectedFirm = firms.find((f) => f.id === Number(firmId));
       await onSave({
         name: name.trim(),
         accountCode: accountCode.trim(),
@@ -72,6 +79,8 @@ export const PartyModal: React.FC<PartyModalProps> = ({
         gstin: gstin.trim().toUpperCase(),
         partyType,
         openingBalance: finalOpeningBalance,
+        firmId: selectedFirm?.id,
+        firmName: selectedFirm?.name,
       });
       onClose();
     } finally {
@@ -82,10 +91,21 @@ export const PartyModal: React.FC<PartyModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-lg">{partyToEdit ? 'Edit Party' : 'Add New Party'}</h3>
-            <p className="text-xs text-slate-400">Customer or Supplier Ledger Master</p>
+        <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 sm:p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 border border-slate-700 shadow-2xs mr-0.5"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4 text-emerald-400" />
+              <span>Back</span>
+            </button>
+            <div>
+              <h3 className="font-bold text-base sm:text-lg leading-tight">{partyToEdit ? 'Edit Party' : 'Add New Party'}</h3>
+              <p className="text-[11px] text-slate-400">Customer or Supplier Ledger Master</p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -127,6 +147,31 @@ export const PartyModal: React.FC<PartyModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Associated Business Firm Selector */}
+          {firms && firms.length > 0 && (
+            <div className="bg-blue-50/60 border border-blue-200/80 p-3 rounded-xl space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-blue-900">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                  Associated Business Firm
+                </span>
+                <span className="text-[10px] text-blue-600 font-semibold lowercase">Multi-firm billing & reminders</span>
+              </label>
+              <select
+                value={firmId || ''}
+                onChange={(e) => setFirmId(e.target.value ? Number(e.target.value) : undefined)}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+              >
+                <option value="">-- All Firms / Primary Default --</option>
+                {firms.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} {f.code ? `(${f.code})` : ''} {f.isDefault ? '★ Primary Default' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

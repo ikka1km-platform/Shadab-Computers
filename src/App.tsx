@@ -28,6 +28,8 @@ import { NewCompanyModal } from './components/common/NewCompanyModal';
 import { ConflictReviewModal } from './components/common/ConflictReviewModal';
 import { performDailyAutoBackup } from './utils/backupRestore';
 import { syncFirmCloudVault, acceptWorkerCloudInvitation } from './utils/googleDriveSync';
+import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault } from './utils/cloudSync';
+import { useBackNavigation, BackGestureFeedbackOverlay } from './utils/backNavigation';
 import { Lock, Tablet } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -89,6 +91,36 @@ export const App: React.FC = () => {
   // Cloud Sync & Conflict State
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+
+  // Registered open modals for the Back System stack (highest priority to close)
+  const openModals = [
+    isExitPinModalOpen && { id: 'exitPin', close: () => setIsExitPinModalOpen(false) },
+    Boolean(txForThermal) && { id: 'thermalSlip', close: () => setTxForThermal(null) },
+    isPrinterManagerOpen && { id: 'printerManager', close: () => setIsPrinterManagerOpen(false) },
+    isNewCompanyModalOpen && { id: 'newCompany', close: () => setIsNewCompanyModalOpen(false) },
+    isConflictModalOpen && { id: 'conflict', close: () => setIsConflictModalOpen(false) },
+    isSettingsOpen && { id: 'settings', close: () => setIsSettingsOpen(false) },
+    isBankingModalOpen && { id: 'banking', close: () => setIsBankingModalOpen(false) },
+    isItemModalOpen && { id: 'item', close: () => setIsItemModalOpen(false) },
+    isTxModalOpen && { id: 'tx', close: () => setIsTxModalOpen(false) },
+    isPartyModalOpen && { id: 'party', close: () => setIsPartyModalOpen(false) },
+    isUserSwitcherOpen && { id: 'userSwitcher', close: () => setIsUserSwitcherOpen(false) },
+  ].filter(Boolean) as { id: string; close: () => void }[];
+
+  const {
+    handleGoBack,
+    navigateToTab,
+    canGoBack,
+    gestureFeedback,
+    exitToastVisible,
+  } = useBackNavigation({
+    activeTab,
+    setActiveTab,
+    selectedParty,
+    setSelectedParty,
+    isKioskMode: isCustomerKioskMode,
+    openModals,
+  });
 
   // Live Queries from Dexie DB
   const parties = useLiveQuery(() => db.parties.toArray(), []) || [];
@@ -183,6 +215,20 @@ export const App: React.FC = () => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const cloudInvite = urlParams.get('cloudInvite');
+      const directFirmParam = urlParams.get('joinFirm') || urlParams.get('firmId');
+
+      if (directFirmParam && (!profile?.firmId || profile.firmId !== directFirmParam.toUpperCase())) {
+        const pinParam = urlParams.get('pin') || '1234';
+        authenticateFirmOnCloud(directFirmParam.toUpperCase(), pinParam)
+          .then(async (res) => {
+            const vault = res.vault || (await downloadCloudVault(directFirmParam.toUpperCase()));
+            if (vault) {
+              await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
+            }
+          })
+          .catch((err) => console.log('Direct firm param auth notice:', err));
+      }
+
       if (cloudInvite) {
         acceptWorkerCloudInvitation(cloudInvite, handleSaveProfile)
           .then((res) => {
@@ -250,6 +296,8 @@ export const App: React.FC = () => {
     if (partyToEdit && partyToEdit.id) {
       await db.parties.update(partyToEdit.id, {
         ...data,
+        firmId: data.firmId !== undefined ? data.firmId : partyToEdit.firmId,
+        firmName: data.firmName !== undefined ? data.firmName : partyToEdit.firmName,
         updatedAt: new Date().toISOString(),
       });
       await updatePartyBalance(partyToEdit.id);
@@ -261,7 +309,7 @@ export const App: React.FC = () => {
         firmId: profile?.firmId,
       });
     } else {
-      const newId = await db.parties.add({
+      const newPartyRecord: Party = {
         name: data.name || '',
         accountCode: data.accountCode || `ACC-${Date.now().toString().slice(-4)}`,
         phone: data.phone || '',
@@ -271,15 +319,18 @@ export const App: React.FC = () => {
         partyType: data.partyType || 'CUSTOMER',
         openingBalance: data.openingBalance || 0,
         currentBalance: data.openingBalance || 0,
+        firmId: data.firmId,
+        firmName: data.firmName,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
+      };
+      const newId = await db.parties.add(newPartyRecord);
       await updatePartyBalance(newId);
       await enqueueSyncItem({
         entityType: 'party',
         entityId: data.name || '',
         action: 'CREATE',
-        payload: data,
+        payload: { ...newPartyRecord, id: newId },
         firmId: profile?.firmId,
       });
     }
@@ -589,6 +640,10 @@ export const App: React.FC = () => {
   };
 
   const handleSaveProfile = async (data: Partial<BusinessProfile>) => {
+    // Security Requirement 15: Ensure Google access token is never persisted to Dexie DB or storage
+    if (data.firmCloudAccount && 'accessToken' in data.firmCloudAccount) {
+      delete data.firmCloudAccount.accessToken;
+    }
     if (profile && profile.id) {
       await db.businessProfile.update(profile.id, data);
     } else {
@@ -760,16 +815,15 @@ export const App: React.FC = () => {
         <Navbar
           profile={profile}
           activeSession={activeSession}
+          canGoBack={canGoBack}
+          onGoBack={() => handleGoBack('ui_button')}
           onOpenUserSwitcher={() => setIsUserSwitcherOpen(true)}
           onOpenQuickTx={() => handleOpenAddTx('PAYMENT_IN')}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenNewCompany={() => setIsNewCompanyModalOpen(true)}
           onOpenBanking={() => setIsBankingModalOpen(true)}
           onOpenPrinterSettings={() => setIsPrinterManagerOpen(true)}
-          onOpenTeamSync={() => {
-            setSelectedParty(null);
-            setActiveTab('team');
-          }}
+          onOpenTeamSync={() => navigateToTab('team')}
           onEnterShowroomMode={handleEnterKioskMode}
           isPinEnabled={Boolean(profile?.isPinLockEnabled && profile?.securityPin)}
           onLockApp={() => {
@@ -790,10 +844,7 @@ export const App: React.FC = () => {
           <Sidebar
             activeTab={activeTab}
             currentRole={activeSession.role}
-            onSelectTab={(tab) => {
-              setSelectedParty(null);
-              setActiveTab(tab);
-            }}
+            onSelectTab={(tab) => navigateToTab(tab)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenBanking={() => setIsBankingModalOpen(true)}
           />
@@ -817,7 +868,8 @@ export const App: React.FC = () => {
               transactions={transactions}
               profile={profile}
               bankAccounts={bankAccounts}
-              onBack={() => setSelectedParty(null)}
+              firms={firms}
+              onBack={() => handleGoBack('ui_button')}
               onEditParty={handleOpenEditParty}
               onDeleteParty={handleDeleteParty}
               onOpenTxModal={(t, pId) => handleOpenAddTx(t, pId || selectedParty.id)}
@@ -836,16 +888,12 @@ export const App: React.FC = () => {
               onChangeFirmFilter={(fId) => setSelectedFirmId(fId)}
               onOpenTxModal={(t) => handleOpenAddTx(t)}
               onSelectParty={(p) => setSelectedParty(p)}
-              onViewAllTxs={() => setActiveTab('daybook')}
+              onViewAllTxs={() => navigateToTab('daybook')}
               onNavigateToParties={(filter) => {
                 setPartyListFilter(filter);
-                setSelectedParty(null);
-                setActiveTab('parties');
+                navigateToTab('parties');
               }}
-              onNavigateToDaybook={() => {
-                setSelectedParty(null);
-                setActiveTab('daybook');
-              }}
+              onNavigateToDaybook={() => navigateToTab('daybook')}
               onOpenBankingModal={() => setIsBankingModalOpen(true)}
             />
           ) : activeTab === 'parties' ? (
@@ -853,6 +901,7 @@ export const App: React.FC = () => {
               parties={parties}
               profile={profile}
               bankAccounts={bankAccounts}
+              firms={firms}
               currentRole={activeSession.role}
               initialFilter={partyListFilter}
               onSelectParty={(p) => setSelectedParty(p)}
@@ -919,10 +968,7 @@ export const App: React.FC = () => {
         <MobileTabBar
           activeTab={activeTab}
           currentRole={activeSession.role}
-          onSelectTab={(tab) => {
-            setSelectedParty(null);
-            setActiveTab(tab);
-          }}
+          onSelectTab={(tab) => navigateToTab(tab)}
         />
       )}
 
@@ -933,6 +979,7 @@ export const App: React.FC = () => {
         onDelete={handleDeleteParty}
         partyToEdit={partyToEdit}
         defaultType={defaultPartyType}
+        firms={firms}
       />
 
       <TransactionModal
@@ -1042,6 +1089,12 @@ export const App: React.FC = () => {
         onClose={() => setIsExitPinModalOpen(false)}
         correctPin={profile?.securityPin || '1234'}
         onSuccess={handleConfirmExitKiosk}
+      />
+
+      {/* Floating Swipe/Back Gesture Cue & Android Double-Back Toast */}
+      <BackGestureFeedbackOverlay
+        gestureFeedback={gestureFeedback}
+        exitToastVisible={exitToastVisible}
       />
     </div>
   );

@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Check,
   Edit3,
+  ArrowLeft,
 } from 'lucide-react';
 import { Item } from '../../types';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
@@ -200,10 +201,19 @@ export const ItemModal: React.FC<ItemModalProps> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden max-h-[94vh] flex flex-col">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl ${itemToEdit ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
-              {itemToEdit ? <Edit3 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 sm:p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 border border-slate-700 shadow-2xs mr-0.5"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4 text-emerald-400" />
+              <span>Back</span>
+            </button>
+            <div className={`p-1.5 rounded-xl ${itemToEdit ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
+              {itemToEdit ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             </div>
             <div>
               <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">

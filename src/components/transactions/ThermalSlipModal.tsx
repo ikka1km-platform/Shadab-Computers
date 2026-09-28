@@ -62,7 +62,7 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
 
   useEffect(() => {
     if (profile.upiId && dueAmount > 0) {
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&am=${dueAmount}&cu=INR`;
+      const upiUrl = `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&cu=INR`;
       QRCode.toDataURL(upiUrl, { margin: 1, width: 140 })
         .then(setQrDataUrl)
         .catch(console.error);

@@ -1,5 +1,13 @@
 import { BusinessProfile, DenominationBreakdown, Transaction } from '../types';
 import { formatCurrency, formatDate, formatDateTime, numberToWordsINR } from './formatters';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+interface NativeSharePluginInterface {
+  shareImage(options: { base64: string; filename: string; title?: string; text?: string; target?: 'whatsapp' | 'all' }): Promise<{ success: boolean; sharedDirectWhatsApp?: boolean }>;
+  saveImage(options: { base64: string; filename: string }): Promise<{ success: boolean; filename: string; uri?: string; location?: string }>;
+}
+
+const NativeShare = registerPlugin<NativeSharePluginInterface>('NativeShare');
 
 interface GenerateImageOptions {
   selectedDate: string;
@@ -129,7 +137,8 @@ export async function generateDenominationJPEG({
 
   ctx.fillStyle = '#e0e7ff'; // indigo-100
   ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const dateStr = `DATE: ${formatDate(selectedDate).toUpperCase()}`;
+  const dateLabel = selectedDate === 'ALL' ? 'ALL DATES (CONSOLIDATED)' : formatDate(selectedDate).toUpperCase();
+  const dateStr = `DATE: ${dateLabel}`;
   const dateWidth = ctx.measureText(dateStr).width;
   ctx.fillText(dateStr, cardX + cardWidth - 30 - dateWidth, curY + 28);
 
@@ -144,8 +153,9 @@ export async function generateDenominationJPEG({
   curY += 18;
   ctx.fillStyle = '#64748b'; // slate-500
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const subtitleDate = selectedDate === 'ALL' ? 'all recorded dates' : formatDate(selectedDate);
   ctx.fillText(
-    `Official note piece count report generated for ${displayFirm} on ${formatDate(selectedDate)}`,
+    `Official note piece count report generated for ${displayFirm} on ${subtitleDate}`,
     cardX + 30,
     curY
   );
@@ -470,16 +480,20 @@ export async function generateDenominationJPEG({
   });
 
   const safeFirm = displayFirm.replace(/\s+/g, '_');
-  const filename = `Cash_Note_Retally_${safeFirm}_${selectedDate}.jpg`;
+  const safeDate = selectedDate === 'ALL' ? 'All_Dates' : selectedDate;
+  const filename = `Cash_Note_Retally_${safeFirm}_${safeDate}.jpg`;
 
   return { blob, dataUrl, filename };
 }
 
 /**
  * Triggers native mobile/desktop Web Share API (WhatsApp, Telegram, Gmail, etc.)
- * with fallback to automatic JPG file download.
+ * On Android Capacitor: invokes NativeSharePlugin with attached JPEG directly to WhatsApp.
  */
-export async function shareDenominationJPEG(options: GenerateImageOptions): Promise<{ success: boolean; shared: boolean; downloaded: boolean }> {
+export async function shareDenominationJPEG(
+  options: GenerateImageOptions,
+  target: 'whatsapp' | 'all' = 'whatsapp'
+): Promise<{ success: boolean; shared: boolean; downloaded: boolean; message?: string }> {
   try {
     const { blob, dataUrl, filename } = await generateDenominationJPEG(options);
 
@@ -487,37 +501,58 @@ export async function shareDenominationJPEG(options: GenerateImageOptions): Prom
       ? options.firmName
       : 'All Firms Consolidated';
 
-    const shareTitle = `${displayFirm} - Cash Note Re-Tally (${formatDate(options.selectedDate)})`;
-    const shareText = `📊 Daily Cash Denomination & Note Demonstration Sheet for *${displayFirm}* on ${formatDate(options.selectedDate)}.\n\n` +
+    const dateLabel = options.selectedDate === 'ALL' ? 'All Dates' : formatDate(options.selectedDate);
+    const shareTitle = `${displayFirm} - Cash Note Re-Tally (${dateLabel})`;
+    const shareText = `📊 Daily Cash Denomination & Note Demonstration Sheet for *${displayFirm}* (${dateLabel}).\n\n` +
       `💵 Total Physical Cash: ${formatCurrency(options.totalDenoms.totalAmount || 0)}\n` +
       `🔢 Total Notes: ${options.totalDenoms.totalNotes || 0} Pieces\n` +
       `🧾 Receipts Count: ${options.cashTransactions.length} Receipts\n\n` +
       `Shared from Vyapar Plus App.`;
 
-    const file = new File([blob], filename, { type: 'image/jpeg' });
+    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 
-    // Check if browser supports sharing files (Android Chrome, Safari, Samsung Internet, Edge)
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    // 1. Android Native Share Plugin (Direct WhatsApp / System Chooser with attached JPG)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const res = await NativeShare.shareImage({
+          base64: base64Data,
+          filename,
+          title: shareTitle,
+          text: shareText,
+          target,
+        });
+        return {
+          success: true,
+          shared: true,
+          downloaded: false,
+          message: res.sharedDirectWhatsApp ? 'Opened WhatsApp with JPG!' : 'Opened Share sheet with JPG!'
+        };
+      } catch (nativeErr: any) {
+        console.warn('NativeSharePlugin failed, falling back to Web Share API:', nativeErr);
+      }
+    }
+
+    // 2. Web Share API (Safari iOS, Chrome)
+    const file = new File([blob], filename, { type: 'image/jpeg' });
+    if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           title: shareTitle,
           text: shareText,
           files: [file],
         });
-        return { success: true, shared: true, downloaded: false };
+        return { success: true, shared: true, downloaded: false, message: 'Shared via Web Share' };
       } catch (err: any) {
-        // User closed the share dialog without picking an app
         if (err.name === 'AbortError') {
           return { success: true, shared: false, downloaded: false };
         }
-        // If file sharing failed, fallback to download
         console.warn('Navigator share error, falling back to download:', err);
       }
     }
 
-    // Fallback: Direct Download of JPG
+    // 3. Fallback: Browser Download
     downloadBlob(dataUrl, filename);
-    return { success: true, shared: false, downloaded: true };
+    return { success: true, shared: false, downloaded: true, message: `Downloaded: ${filename}` };
   } catch (error) {
     console.error('Error sharing denomination JPEG:', error);
     alert('Failed to generate JPEG image. Please try again.');
@@ -526,7 +561,41 @@ export async function shareDenominationJPEG(options: GenerateImageOptions): Prom
 }
 
 /**
- * Direct download helper for JPG image
+ * Saves high-resolution JPEG directly into phone's internal storage (Pictures/Vyapar in MediaStore) on Android,
+ * making it immediately visible in Photos/Gallery/Files, or downloads via browser on Web.
+ */
+export async function saveDenominationJPEG(options: GenerateImageOptions): Promise<{ success: boolean; filePath?: string; filename: string; location?: string }> {
+  try {
+    const { dataUrl, filename } = await generateDenominationJPEG(options);
+    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const res = await NativeShare.saveImage({
+          base64: base64Data,
+          filename,
+        });
+        return {
+          success: true,
+          filePath: res.uri,
+          filename,
+          location: res.location || 'Pictures/Vyapar (Phone Storage)'
+        };
+      } catch (nativeErr) {
+        console.warn('Native save failed, downloading as blob:', nativeErr);
+      }
+    }
+
+    downloadBlob(dataUrl, filename);
+    return { success: true, filePath: filename, filename, location: 'Downloads' };
+  } catch (error) {
+    console.error('Error saving denomination JPEG:', error);
+    return { success: false, filename: '' };
+  }
+}
+
+/**
+ * Direct download helper for JPG image (Web only)
  */
 export function downloadBlob(dataUrl: string, filename: string) {
   const link = document.createElement('a');

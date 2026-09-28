@@ -59,6 +59,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
   const [firmPhone, setFirmPhone] = useState('');
   const [firmAddress, setFirmAddress] = useState('');
   const [firmGstin, setFirmGstin] = useState('');
+  const [firmUpiId, setFirmUpiId] = useState('');
+  const [firmBankAccountId, setFirmBankAccountId] = useState<number | undefined>(undefined);
   const [isDefaultFirm, setIsDefaultFirm] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -140,6 +142,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
           phone: firmPhone || undefined,
           address: firmAddress || undefined,
           gstin: firmGstin || undefined,
+          upiId: firmUpiId.trim() || undefined,
+          bankAccountId: firmBankAccountId ? Number(firmBankAccountId) : undefined,
           isDefault: isDefaultFirm,
         });
       } else {
@@ -149,6 +153,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
           phone: firmPhone || undefined,
           address: firmAddress || undefined,
           gstin: firmGstin || undefined,
+          upiId: firmUpiId.trim() || undefined,
+          bankAccountId: firmBankAccountId ? Number(firmBankAccountId) : undefined,
           isDefault: isDefaultFirm,
         });
       }
@@ -167,6 +173,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
     setFirmPhone(f.phone || '');
     setFirmAddress(f.address || '');
     setFirmGstin(f.gstin || '');
+    setFirmUpiId(f.upiId || '');
+    setFirmBankAccountId(f.bankAccountId);
     setIsDefaultFirm(!!f.isDefault);
     setIsAddingFirm(true);
   };
@@ -177,6 +185,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
     setFirmPhone('');
     setFirmAddress('');
     setFirmGstin('');
+    setFirmUpiId('');
+    setFirmBankAccountId(undefined);
     setIsDefaultFirm(false);
     setEditingFirmId(null);
   };
@@ -516,6 +526,50 @@ export const BankingModal: React.FC<BankingModalProps> = ({
                         className="w-full p-2 bg-white border border-slate-300 rounded-lg outline-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="block font-medium text-slate-700 mb-1">
+                        Linked Bank Account (for UPI & Collections)
+                      </label>
+                      <select
+                        value={firmBankAccountId ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : undefined;
+                          setFirmBankAccountId(val);
+                          if (val && !firmUpiId) {
+                            const b = bankAccounts.find(acc => acc.id === val);
+                            if (b?.upiId) setFirmUpiId(b.upiId);
+                          }
+                        }}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg outline-none text-slate-800"
+                      >
+                        <option value="">-- No Specific Bank Account --</option>
+                        {bankAccounts.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.accountName} - {b.bankName} {b.upiId ? `(${b.upiId})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Payment reminders for this firm's parties will show this account.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block font-medium text-slate-700 mb-1">
+                        Firm Dedicated UPI ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. ms-shopping@okicici or 9811122334@paytm"
+                        value={firmUpiId}
+                        onChange={(e) => setFirmUpiId(e.target.value)}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg outline-none font-mono"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Open UPI payment link in reminders will route to this UPI ID.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
@@ -576,6 +630,18 @@ export const BankingModal: React.FC<BankingModalProps> = ({
                         {f.address && (
                           <p className="text-[11px] text-slate-400 mt-0.5">{f.address}</p>
                         )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {f.upiId && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              UPI: {f.upiId}
+                            </span>
+                          )}
+                          {f.bankAccountId && (
+                            <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                              Bank: {bankAccounts.find(b => b.id === f.bankAccountId)?.accountName || `Account #${f.bankAccountId}`}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

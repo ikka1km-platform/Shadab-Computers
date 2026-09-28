@@ -14,7 +14,7 @@ import {
   Receipt,
   Trash2
 } from 'lucide-react';
-import { Party, Transaction, BusinessProfile, BankAccount } from '../../types';
+import { Party, Transaction, BusinessProfile, BankAccount, Firm } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { generatePartyStatementPDF, generateReceiptVoucherPDF } from '../../utils/pdfGenerator';
 import { PaymentReminderModal } from '../reminders/PaymentReminderModal';
@@ -27,6 +27,7 @@ interface PartyDetailProps {
   transactions: Transaction[];
   profile: BusinessProfile;
   bankAccounts?: BankAccount[];
+  firms?: Firm[];
   onBack: () => void;
   onEditParty: (party: Party) => void;
   onDeleteParty?: (partyId: number) => Promise<void> | void;
@@ -39,6 +40,7 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
   transactions,
   profile,
   bankAccounts = [],
+  firms = [],
   onBack,
   onEditParty,
   onDeleteParty,
@@ -121,13 +123,18 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg md:text-xl font-bold text-slate-800">{party.name}</h2>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
                 party.partyType === 'CUSTOMER' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
               }`}>
                 {party.partyType}
               </span>
+              {party.firmName && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  🏢 {party.firmName}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 font-mono">Code: {party.accountCode}</p>
           </div>
@@ -228,16 +235,40 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs md:col-span-2 space-y-2">
           <span className="text-xs font-semibold text-slate-500 uppercase">Contact & Address</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
-            <div className="flex items-center gap-2 text-slate-700">
-              <Phone className="w-4 h-4 text-slate-400" />
-              <span>{party.phone || 'No phone recorded'}</span>
+            <div className="flex items-center justify-between gap-2 text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100 sm:col-span-1">
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                {party.phone ? (
+                  <a
+                    href={`tel:${party.phone}`}
+                    className="text-blue-600 hover:text-blue-800 font-semibold underline flex items-center gap-1.5"
+                    title={`Tap to call ${party.phone}`}
+                  >
+                    <span>{party.phone}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Call 📞
+                    </span>
+                  </a>
+                ) : (
+                  <span className="text-slate-400">No phone recorded</span>
+                )}
+              </div>
+              {party.phone && (
+                <a
+                  href={`tel:${party.phone}`}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold flex items-center gap-1 transition-colors shadow-xs"
+                  title="Direct Call via Phone App"
+                >
+                  <Phone className="w-3 h-3" /> Call
+                </a>
+              )}
             </div>
-            <div className="flex items-center gap-2 text-slate-700">
-              <Hash className="w-4 h-4 text-slate-400" />
-              <span>GSTIN: {party.gstin || 'Unregistered'}</span>
+            <div className="flex items-center gap-2 text-slate-700 p-2">
+              <Hash className="w-4 h-4 text-slate-400 shrink-0" />
+              <span>GSTIN: <span className="font-semibold">{party.gstin || 'Unregistered'}</span></span>
             </div>
-            <div className="flex items-start gap-2 text-slate-700 sm:col-span-2">
-              <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
+            <div className="flex items-start gap-2 text-slate-700 sm:col-span-2 px-2">
+              <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
               <span>{party.address || 'No address provided'}</span>
             </div>
           </div>
@@ -382,6 +413,7 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
           party={party}
           profile={profile}
           bankAccounts={bankAccounts}
+          firms={firms}
         />
       )}
 

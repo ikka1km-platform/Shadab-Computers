@@ -28,6 +28,7 @@ import { CoWorker, UserRole, BusinessProfile } from '../../types';
 import { CoWorkerModal } from './CoWorkerModal';
 import { UserSession } from '../../utils/userSession';
 import { generateWorkerCloudInvitation } from '../../utils/googleDriveSync';
+import { getCloudServerUrl } from '../../utils/cloudSync';
 
 interface CoWorkerSyncProps {
   coWorkers: CoWorker[];
@@ -76,21 +77,18 @@ export const CoWorkerSync: React.FC<CoWorkerSyncProps> = ({
     showToast(newState ? '✓ Auto Cloud Sync Enabled (Live Sync Active)' : 'Auto Cloud Sync Paused');
   };
 
-  // Base app link for sharing
+  // Base app link for sharing - always resolves to public HTTPS cloud URL
   const appBaseUrl = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      return window.location.origin;
-    }
-    return 'http://localhost:5173';
+    return getCloudServerUrl();
   }, []);
 
-  // Build clean staff access link with Firm Cloud Identity
+  // Build clean staff access link with Firm Cloud Identity (no plaintext PIN in URL)
   const getStaffLink = (worker?: CoWorker) => {
     if (!worker) return appBaseUrl;
     if (profile?.firmId) {
       return generateWorkerCloudInvitation(profile, worker, appBaseUrl).inviteUrl;
     }
-    return `${appBaseUrl}/?workerId=${worker.id}&pin=${worker.pin || ''}`;
+    return `${appBaseUrl}/?workerId=${worker.id}`;
   };
 
   // Generate QR Code when QR modal is opened

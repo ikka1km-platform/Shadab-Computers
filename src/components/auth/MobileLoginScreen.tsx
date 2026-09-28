@@ -10,11 +10,13 @@ import {
   Building2, 
   Store, 
   Sparkles, 
-  KeyRound,
-  Users2
+  Users2,
+  Cloud,
+  LogIn
 } from 'lucide-react';
 import { BusinessProfile, CoWorker } from '../../types';
 import { UserSession } from '../../utils/userSession';
+import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault } from '../../utils/cloudSync';
 
 interface MobileLoginScreenProps {
   profile?: BusinessProfile;
@@ -38,6 +40,46 @@ export const MobileLoginScreen: React.FC<MobileLoginScreenProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
+
+  // Cloud Join Direct State
+  const [isJoinCloudMode, setIsJoinCloudMode] = useState(false);
+  const [cloudFirmId, setCloudFirmId] = useState('FIRM_MUI8HFY6_47UPAJ');
+  const [cloudPin, setCloudPin] = useState('1234');
+  const [cloudJoinLoading, setCloudJoinLoading] = useState(false);
+  const [cloudJoinMsg, setCloudJoinMsg] = useState<string | null>(null);
+
+  const handleCloudFirmJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!cloudFirmId.trim()) {
+      setError('Please enter Firm ID (e.g. FIRM_MUI8HFY6_47UPAJ)');
+      return;
+    }
+    if (!cloudPin.trim()) {
+      setError('Please enter 4-digit Master or Staff PIN');
+      return;
+    }
+    setCloudJoinLoading(true);
+    setCloudJoinMsg('Connecting to cloud server...');
+    try {
+      const cleanFirmId = cloudFirmId.trim().toUpperCase();
+      const res = await authenticateFirmOnCloud(cleanFirmId, cloudPin.trim());
+      let vault = res.vault;
+      if (!vault) {
+        vault = await downloadCloudVault(cleanFirmId);
+      }
+      if (!vault) {
+        throw new Error('Firm authenticated, but could not download firm data.');
+      }
+      setCloudJoinMsg(`✓ Authenticated with ${res.firmName || cleanFirmId}! Hydrating business data...`);
+      await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
+    } catch (err: any) {
+      console.error('Cloud join error:', err);
+      setError(`Failed to join firm: ${err.message || err}`);
+      setCloudJoinLoading(false);
+      setCloudJoinMsg(null);
+    }
+  };
 
   // Handle Phone Submit
   const handlePhoneSubmit = (e: React.FormEvent) => {
@@ -154,10 +196,103 @@ export const MobileLoginScreen: React.FC<MobileLoginScreenProps> = ({
           </div>
         </div>
 
-        {/* Form Body */}
         <div className="p-6 md:p-8">
-          {/* STEP 1: PHONE NUMBER INPUT */}
+          {/* Mode Switcher Tabs for Step 1 */}
           {step === 'PHONE' && (
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-5">
+              <button
+                type="button"
+                onClick={() => { setIsJoinCloudMode(false); setError(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  !isJoinCloudMode ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Mobile Login
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsJoinCloudMode(true); setError(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  isJoinCloudMode ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span>Join Cloud Firm</span>
+              </button>
+            </div>
+          )}
+
+          {/* STEP 1A: JOIN CLOUD FIRM DIRECTLY */}
+          {step === 'PHONE' && isJoinCloudMode && (
+            <form onSubmit={handleCloudFirmJoin} className="space-y-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-800">Join Existing Cloud Firm</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Enter your Android tablet's Firm ID & PIN to load real business records
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Firm ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. FIRM_MUI8HFY6_47UPAJ"
+                  value={cloudFirmId}
+                  onChange={(e) => setCloudFirmId(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2.5 text-sm font-mono font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Master or Staff PIN
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="e.g. 1234"
+                  value={cloudPin}
+                  onChange={(e) => setCloudPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  className="w-full px-3.5 py-2.5 text-center text-lg font-mono font-black text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-none"
+                  required
+                />
+              </div>
+
+              {cloudJoinMsg && (
+                <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                  {cloudJoinMsg}
+                </div>
+              )}
+
+              {error && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={cloudJoinLoading || !cloudFirmId || !cloudPin}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-2xl text-sm transition-all shadow-md hover:shadow-lg active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>{cloudJoinLoading ? 'Downloading Firm Data...' : 'Join Firm & Open Business'}</span>
+              </button>
+
+              <div className="pt-2 text-[11px] text-slate-500 text-center">
+                <span>Default PIN: </span>
+                <b className="text-slate-700">1234</b>
+                <span> (Owner) or Staff PIN</span>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 1B: PHONE NUMBER INPUT */}
+          {step === 'PHONE' && !isJoinCloudMode && (
             <form onSubmit={handlePhoneSubmit} className="space-y-5">
               <div>
                 <h2 className="text-lg font-extrabold text-slate-800">Login with Mobile Number</h2>

@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   MessageCircle, 
   Share2, 
-  Smartphone, 
   Copy, 
   Check, 
-  Send, 
-  AlertCircle,
   Landmark,
-  QrCode
+  Building2
 } from 'lucide-react';
-import { Party, BusinessProfile, BankAccount } from '../../types';
+import { Party, BusinessProfile, BankAccount, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 
 interface PaymentReminderModalProps {
@@ -20,6 +17,7 @@ interface PaymentReminderModalProps {
   party: Party;
   profile: BusinessProfile;
   bankAccounts?: BankAccount[];
+  firms?: Firm[];
 }
 
 export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
@@ -28,32 +26,74 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
   party,
   profile,
   bankAccounts = [],
+  firms = [],
 }) => {
   const [tone, setTone] = useState<'polite' | 'standard' | 'urgent'>('polite');
   const [copied, setCopied] = useState(false);
 
+  // Identify party's associated firm
+  const partyFirm = firms.find((f) => f.id === party.firmId);
+  const activeFirmName = partyFirm?.name || party.firmName || profile.businessName;
+
+  // Find default bank account linked to this firm
+  const firmBanks = bankAccounts.filter((b) => 
+    (party.firmId && b.firmId === party.firmId) || 
+    (partyFirm && b.firmName === partyFirm.name)
+  );
+
+  const initialBank = firmBanks.find((b) => b.upiId) || 
+                      firmBanks[0] || 
+                      bankAccounts.find((b) => b.isDefault) || 
+                      bankAccounts[0];
+
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(
+    initialBank ? `BANK_${initialBank.id}` : 'PROFILE_UPI'
+  );
+
+  useEffect(() => {
+    const matchedBank = firmBanks.find((b) => b.upiId) || firmBanks[0] || bankAccounts.find((b) => b.isDefault) || bankAccounts[0];
+    if (matchedBank) {
+      setSelectedAccountId(`BANK_${matchedBank.id}`);
+    } else {
+      setSelectedAccountId('PROFILE_UPI');
+    }
+  }, [party, firms, bankAccounts]);
+
   if (!isOpen) return null;
 
   const dueAmount = Math.abs(party.currentBalance);
-  const defaultBank = bankAccounts.find((b) => b.isDefault) || bankAccounts[0];
 
-  // Click-to-pay link for mobile UPI apps (PhonePe, GPay, Paytm, BHIM)
-  const upiPayLink = profile.upiId
-    ? `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&am=${dueAmount}&cu=INR`
+  // Determine active bank and active UPI ID based on selected account
+  let activeBank: BankAccount | undefined = undefined;
+  let activeUpiId = '';
+
+  if (selectedAccountId.startsWith('BANK_')) {
+    const bankId = Number(selectedAccountId.replace('BANK_', ''));
+    activeBank = bankAccounts.find((b) => b.id === bankId);
+    activeUpiId = activeBank?.upiId || partyFirm?.upiId || profile.upiId || '';
+  } else {
+    activeUpiId = partyFirm?.upiId || profile.upiId || '';
+    activeBank = initialBank;
+  }
+
+  // Click-to-pay link for mobile UPI apps without hardcoded amount
+  // Customer can manually enter the exact or partial amount they want to pay
+  const upiPayLink = activeUpiId
+    ? `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeFirmName)}&cu=INR`
     : '';
 
   // Tone message templates
   let reminderIntro = '';
   if (tone === 'polite') {
-    reminderIntro = `Dear ${party.name}, gentle greeting from ${profile.businessName}. We hope you are doing well. This is a friendly reminder that an outstanding payment of ${formatCurrency(dueAmount)} is pending on your account.`;
+    reminderIntro = `Dear ${party.name}, gentle greeting from ${activeFirmName}. We hope you are doing well. This is a friendly reminder that an outstanding payment of ${formatCurrency(dueAmount)} is pending on your account.`;
   } else if (tone === 'standard') {
-    reminderIntro = `Dear ${party.name}, payment reminder for your pending balance of ${formatCurrency(dueAmount)} with ${profile.businessName}. Please arrange to clear the dues at your earliest convenience.`;
+    reminderIntro = `Dear ${party.name}, payment reminder for your pending balance of ${formatCurrency(dueAmount)} with ${activeFirmName}. Please arrange to clear the dues at your earliest convenience.`;
   } else {
-    reminderIntro = `URGENT PAYMENT REMINDER: Dear ${party.name}, your payment of ${formatCurrency(dueAmount)} with ${profile.businessName} is overdue. Kindly settle this balance today to avoid disruption in services.`;
+    reminderIntro = `URGENT PAYMENT REMINDER: Dear ${party.name}, your payment of ${formatCurrency(dueAmount)} with ${activeFirmName} is overdue. Kindly settle this balance today to avoid disruption in services.`;
   }
 
-  const bankText = defaultBank
-    ? `\n*Bank Transfer Details:*\nBank: ${defaultBank.bankName}\nA/C Name: ${defaultBank.accountName}\nA/C No: ${defaultBank.accountNumber}${defaultBank.ifscCode ? `\nIFSC: ${defaultBank.ifscCode}` : ''}`
+  const bankText = activeBank
+    ? `\n*Bank Transfer Details:*\nBank: ${activeBank.bankName}\nA/C Name: ${activeBank.accountName}\nA/C No: ${activeBank.accountNumber}${activeBank.ifscCode ? `\nIFSC: ${activeBank.ifscCode}` : ''}`
     : '';
 
   const fullMessage = 
@@ -61,13 +101,13 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
 
 *Outstanding Due Amount:* ${formatCurrency(dueAmount)}
 ----------------------------------------
-${profile.upiId ? `💳 *Pay via UPI:* ${profile.upiId}\n📲 *Tap to Pay with GPay/PhonePe:* ${upiPayLink}\n` : ''}${bankText}
+${activeUpiId ? `💳 *Pay via UPI:* ${activeUpiId}\n📲 *Tap to Pay with UPI (GPay/PhonePe):* ${upiPayLink}\n_(Tap link & enter the amount you wish to pay)_\n` : ''}${bankText}
 ----------------------------------------
 If you have already made the payment, please disregard this reminder.
 
 Regards,
-*${profile.businessName}*
-${profile.phone ? `Ph: ${profile.phone}` : ''}`;
+*${activeFirmName}*
+${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}` : ''}`;
 
   const handleShareWhatsApp = () => {
     const phoneClean = party.phone?.replace(/[^0-9]/g, '');
@@ -76,12 +116,6 @@ ${profile.phone ? `Ph: ${profile.phone}` : ''}`;
       ? `https://wa.me/${phoneClean.startsWith('91') ? phoneClean : '91' + phoneClean}?text=${encoded}`
       : `https://wa.me/?text=${encoded}`;
     window.open(url, '_blank');
-  };
-
-  const handleShareSMS = () => {
-    const phoneClean = party.phone?.replace(/[^0-9]/g, '');
-    const encoded = encodeURIComponent(fullMessage);
-    window.location.href = `sms:${phoneClean || ''}?body=${encoded}`;
   };
 
   const handleNativeShare = async () => {
@@ -115,7 +149,15 @@ ${profile.phone ? `Ph: ${profile.phone}` : ''}`;
               <MessageCircle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Send Payment Reminder (Udhar)</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-800 text-sm">Send Payment Reminder (Udhar)</h3>
+                {partyFirm && (
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-indigo-600" />
+                    {partyFirm.name}
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-slate-500">{party.name} • Pending: {formatCurrency(dueAmount)}</p>
             </div>
           </div>
@@ -128,6 +170,38 @@ ${profile.phone ? `Ph: ${profile.phone}` : ''}`;
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Associated Account & UPI Selection */}
+          {(bankAccounts.length > 0 || profile.upiId) && (
+            <div className="bg-blue-50/60 border border-blue-200/80 p-3 rounded-xl space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-blue-900">
+                  <Landmark className="w-3.5 h-3.5 text-blue-600" />
+                  Receiving Bank & UPI Account:
+                </span>
+                <span className="text-[10px] text-blue-600 font-semibold lowercase">Linked to firm</span>
+              </label>
+              <select
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+              >
+                {bankAccounts.map((b) => (
+                  <option key={b.id} value={`BANK_${b.id}`}>
+                    {b.bankName} - {b.accountName} {b.upiId ? `(UPI: ${b.upiId})` : ''} {b.firmName ? `[Firm: ${b.firmName}]` : ''}
+                  </option>
+                ))}
+                {profile.upiId && (
+                  <option value="PROFILE_UPI">
+                    Company UPI: {profile.upiId} ({profile.businessName})
+                  </option>
+                )}
+              </select>
+              <p className="text-[10px] text-slate-500">
+                Payment link will share UPI without fixed amount so customer can enter their desired payment.
+              </p>
+            </div>
+          )}
+
           {/* Tone Selector */}
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">Reminder Tone:</label>
@@ -163,7 +237,7 @@ ${profile.phone ? `Ph: ${profile.phone}` : ''}`;
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                ⚠️ Urgent / Overdue
+                ⚠️ Urgent
               </button>
             </div>
           </div>
@@ -195,7 +269,7 @@ ${profile.phone ? `Ph: ${profile.phone}` : ''}`;
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Reminder Text Preview (with UPI link)
+                Reminder Text Preview (with Open UPI link)
               </span>
               <button
                 onClick={handleCopyText}

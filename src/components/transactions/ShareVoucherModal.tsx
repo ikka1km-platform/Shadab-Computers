@@ -57,10 +57,8 @@ export const ShareVoucherModal: React.FC<ShareVoucherModalProps> = ({
     ? transaction.balanceDue 
     : Math.max(0, transaction.amount - paidAmt);
 
-  // UPI click-to-pay link
-  const upiLink = profile.upiId && balanceDue > 0
-    ? `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&am=${balanceDue}&cu=INR`
-    : profile.upiId
+  // UPI click-to-pay link (open amount so customer can pay manually)
+  const upiLink = profile.upiId
     ? `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&cu=INR`
     : '';
 

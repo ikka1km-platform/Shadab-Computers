@@ -1,20 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, 
   Calculator, 
   FileDown, 
   Coins, 
-  Building,
-  CheckCircle2,
-  FileSpreadsheet,
-  Share2,
-  Image,
-  Loader2
+  Building, 
+  CheckCircle2, 
+  FileSpreadsheet, 
+  Share2, 
+  Image, 
+  Loader2,
+  MessageCircle,
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { Transaction, BusinessProfile, DenominationBreakdown, Firm } from '../../types';
 import { formatCurrency, formatDate, numberToWordsINR } from '../../utils/formatters';
 import { generateDailyDenominationPDF } from '../../utils/pdfGenerator';
-import { generateDenominationJPEG, shareDenominationJPEG, downloadBlob } from '../../utils/imageGenerator';
+import { generateDenominationJPEG, shareDenominationJPEG, saveDenominationJPEG, downloadBlob } from '../../utils/imageGenerator';
 
 interface DenominationReportProps {
   transactions: Transaction[];
@@ -37,12 +40,45 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
   const [selectedFirmId, setSelectedFirmId] = useState<number | 'ALL'>(initialFirmId);
   const [isSharing, setIsSharing] = useState<boolean>(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [autoBreakdownCoins, setAutoBreakdownCoins] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialFirmId !== undefined) {
       setSelectedFirmId(initialFirmId);
     }
   }, [initialFirmId]);
+
+  // Find all distinct dates that have cash receipts
+  const datesWithCash = useMemo(() => {
+    const datesMap = new Map<string, { count: number; total: number }>();
+    transactions.forEach((tx) => {
+      const isUnpaid = tx.paymentStatus === 'UNPAID' && (tx.type === 'SALE' || tx.type === 'PURCHASE');
+      const hasCash = !isUnpaid && (
+        tx.paymentMode === 'CASH' || 
+        (tx.paymentMode === 'SPLIT' && (tx.splitPayment?.cashAmount || 0) > 0)
+      );
+      if (hasCash && tx.date) {
+        const d = tx.date.split('T')[0];
+        const prev = datesMap.get(d) || { count: 0, total: 0 };
+        const amt = tx.paymentMode === 'SPLIT' && tx.splitPayment
+          ? tx.splitPayment.cashAmount
+          : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
+        datesMap.set(d, { count: prev.count + 1, total: prev.total + amt });
+      }
+    });
+    return Array.from(datesMap.entries())
+      .map(([date, data]) => ({ date, count: data.count, total: data.total }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions]);
+
+  // Automatically select the latest date with cash receipts if today has none
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayHasCash = datesWithCash.some((d) => d.date === todayStr);
+    if (!todayHasCash && datesWithCash.length > 0 && selectedDate === todayStr) {
+      setSelectedDate(datesWithCash[0].date);
+    }
+  }, [datesWithCash]);
 
   const handleFirmChange = (val: number | 'ALL') => {
     setSelectedFirmId(val);
@@ -55,7 +91,8 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
 
   // Filter all cash-bearing transactions on the selected date across all firms
   const allDayCashTxs = transactions.filter((tx) => {
-    const isDateMatch = tx.date === selectedDate;
+    const txDate = (tx.date || '').split('T')[0];
+    const isDateMatch = selectedDate === 'ALL' || txDate === selectedDate.split('T')[0];
     const isUnpaid = tx.paymentStatus === 'UNPAID' && (tx.type === 'SALE' || tx.type === 'PURCHASE');
     const hasCash = !isUnpaid && (
       tx.paymentMode === 'CASH' || 
@@ -163,15 +200,46 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
     (aggregatedDenoms.c5 || 0) * 5 +
     (aggregatedDenoms.coins || 0);
 
+  // Optional auto-breakdown of loose/uncounted cash into standard bank notes
+  const effectiveDenoms: DenominationBreakdown = useMemo(() => {
+    if (!autoBreakdownCoins || !aggregatedDenoms.coins || aggregatedDenoms.coins <= 0) {
+      return aggregatedDenoms;
+    }
+    let remaining = aggregatedDenoms.coins;
+    const extra500 = Math.floor(remaining / 500); remaining %= 500;
+    const extra200 = Math.floor(remaining / 200); remaining %= 200;
+    const extra100 = Math.floor(remaining / 100); remaining %= 100;
+    const extra50  = Math.floor(remaining / 50);  remaining %= 50;
+    const extra20  = Math.floor(remaining / 20);  remaining %= 20;
+    const extra10  = Math.floor(remaining / 10);  remaining %= 10;
+    const extra5   = Math.floor(remaining / 5);   remaining %= 5;
+
+    const c500 = (aggregatedDenoms.c500 || 0) + extra500;
+    const c200 = (aggregatedDenoms.c200 || 0) + extra200;
+    const c100 = (aggregatedDenoms.c100 || 0) + extra100;
+    const c50  = (aggregatedDenoms.c50 || 0) + extra50;
+    const c20  = (aggregatedDenoms.c20 || 0) + extra20;
+    const c10  = (aggregatedDenoms.c10 || 0) + extra10;
+    const c5   = (aggregatedDenoms.c5 || 0) + extra5;
+    const coins = remaining;
+    const totalNotes = c500 + c200 + c100 + c50 + c20 + c10 + c5;
+
+    return {
+      c500, c200, c100, c50, c20, c10, c5, coins,
+      totalNotes,
+      totalAmount: aggregatedDenoms.totalAmount
+    };
+  }, [aggregatedDenoms, autoBreakdownCoins]);
+
   const denomRows = [
-    { label: '₹500 Notes', val: 500, count: aggregatedDenoms.c500 || 0, subtotal: (aggregatedDenoms.c500 || 0) * 500, color: 'bg-stone-50 border-stone-200 text-stone-900' },
-    { label: '₹200 Notes', val: 200, count: aggregatedDenoms.c200 || 0, subtotal: (aggregatedDenoms.c200 || 0) * 200, color: 'bg-amber-50 border-amber-200 text-amber-900' },
-    { label: '₹100 Notes', val: 100, count: aggregatedDenoms.c100 || 0, subtotal: (aggregatedDenoms.c100 || 0) * 100, color: 'bg-indigo-50 border-indigo-200 text-indigo-900' },
-    { label: '₹50 Notes', val: 50, count: aggregatedDenoms.c50 || 0, subtotal: (aggregatedDenoms.c50 || 0) * 50, color: 'bg-cyan-50 border-cyan-200 text-cyan-900' },
-    { label: '₹20 Notes', val: 20, count: aggregatedDenoms.c20 || 0, subtotal: (aggregatedDenoms.c20 || 0) * 20, color: 'bg-orange-50 border-orange-200 text-orange-900' },
-    { label: '₹10 Notes', val: 10, count: aggregatedDenoms.c10 || 0, subtotal: (aggregatedDenoms.c10 || 0) * 10, color: 'bg-emerald-50 border-emerald-200 text-emerald-900' },
-    { label: '₹5 Notes', val: 5, count: aggregatedDenoms.c5 || 0, subtotal: (aggregatedDenoms.c5 || 0) * 5, color: 'bg-slate-50 border-slate-200 text-slate-900' },
-    { label: 'Coins (₹)', val: 1, count: '-', subtotal: aggregatedDenoms.coins || 0, color: 'bg-yellow-50 border-yellow-200 text-yellow-900', isCoin: true },
+    { label: '₹500 Notes', val: 500, count: effectiveDenoms.c500 || 0, subtotal: (effectiveDenoms.c500 || 0) * 500, color: 'bg-stone-50 border-stone-200 text-stone-900' },
+    { label: '₹200 Notes', val: 200, count: effectiveDenoms.c200 || 0, subtotal: (effectiveDenoms.c200 || 0) * 200, color: 'bg-amber-50 border-amber-200 text-amber-900' },
+    { label: '₹100 Notes', val: 100, count: effectiveDenoms.c100 || 0, subtotal: (effectiveDenoms.c100 || 0) * 100, color: 'bg-indigo-50 border-indigo-200 text-indigo-900' },
+    { label: '₹50 Notes', val: 50, count: effectiveDenoms.c50 || 0, subtotal: (effectiveDenoms.c50 || 0) * 50, color: 'bg-cyan-50 border-cyan-200 text-cyan-900' },
+    { label: '₹20 Notes', val: 20, count: effectiveDenoms.c20 || 0, subtotal: (effectiveDenoms.c20 || 0) * 20, color: 'bg-orange-50 border-orange-200 text-orange-900' },
+    { label: '₹10 Notes', val: 10, count: effectiveDenoms.c10 || 0, subtotal: (effectiveDenoms.c10 || 0) * 10, color: 'bg-emerald-50 border-emerald-200 text-emerald-900' },
+    { label: '₹5 Notes', val: 5, count: effectiveDenoms.c5 || 0, subtotal: (effectiveDenoms.c5 || 0) * 5, color: 'bg-slate-50 border-slate-200 text-slate-900' },
+    { label: 'Coins (₹)', val: 1, count: '-', subtotal: effectiveDenoms.coins || 0, color: 'bg-yellow-50 border-yellow-200 text-yellow-900', isCoin: true },
   ];
 
   const firmDisplayName = activeFirm ? activeFirm.name : 'All Firms (Consolidated)';
@@ -180,30 +248,57 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
   const handleDownloadPDF = () => {
     generateDailyDenominationPDF(
       selectedDate, 
-      aggregatedDenoms, 
+      effectiveDenoms, 
       dayCashTxs, 
       profile,
       firmDisplayName
     );
   };
 
-  // JPG / JPEG Native Share Handler
+  // WhatsApp Direct JPG Share Handler
+  const handleWhatsAppJPG = async () => {
+    setIsSharing(true);
+    try {
+      const result = await shareDenominationJPEG({
+        selectedDate,
+        totalDenoms: effectiveDenoms,
+        cashTransactions: dayCashTxs,
+        profile,
+        firmName: firmDisplayName,
+      }, 'whatsapp');
+
+      if (result.shared) {
+        setToastMsg(`✅ Opened WhatsApp for ${firmDisplayName}!`);
+        setTimeout(() => setToastMsg(null), 4000);
+      } else if (result.downloaded) {
+        setToastMsg(`✅ ${result.message || 'Saved to device storage!'}`);
+        setTimeout(() => setToastMsg(null), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Unable to share image to WhatsApp. Please try again.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  // JPG / JPEG Native Share Handler (Android System Sharesheet / All Apps)
   const handleShareJPG = async () => {
     setIsSharing(true);
     try {
       const result = await shareDenominationJPEG({
         selectedDate,
-        totalDenoms: aggregatedDenoms,
+        totalDenoms: effectiveDenoms,
         cashTransactions: dayCashTxs,
         profile,
         firmName: firmDisplayName,
-      });
+      }, 'all');
 
-      if (result.downloaded) {
-        setToastMsg(`✅ ${firmDisplayName} Note Re-Tally sheet saved as JPG image!`);
+      if (result.shared) {
+        setToastMsg(`✅ Opened Share sheet for ${firmDisplayName}!`);
         setTimeout(() => setToastMsg(null), 4000);
-      } else if (result.shared) {
-        setToastMsg(`✅ Shared note demonstration sheet for ${firmDisplayName}!`);
+      } else if (result.downloaded) {
+        setToastMsg(`✅ ${result.message || 'Saved to device storage!'}`);
         setTimeout(() => setToastMsg(null), 4000);
       }
     } catch (err) {
@@ -214,20 +309,23 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
     }
   };
 
-  // Direct JPG / JPEG Download Handler
+  // Direct JPG / JPEG Save to Internal Storage Handler
   const handleDownloadJPG = async () => {
     setIsSharing(true);
     try {
-      const { dataUrl, filename } = await generateDenominationJPEG({
+      const res = await saveDenominationJPEG({
         selectedDate,
-        totalDenoms: aggregatedDenoms,
+        totalDenoms: effectiveDenoms,
         cashTransactions: dayCashTxs,
         profile,
         firmName: firmDisplayName,
       });
-      downloadBlob(dataUrl, filename);
-      setToastMsg(`✅ Saved ${filename} as JPG!`);
-      setTimeout(() => setToastMsg(null), 4000);
+      if (res.success) {
+        setToastMsg(`✅ Saved to device storage: ${res.filename}`);
+        setTimeout(() => setToastMsg(null), 4000);
+      } else {
+        alert('Failed to save JPG image file.');
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to generate JPG image.');
@@ -296,28 +394,92 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
             />
           </div>
 
+          {/* WhatsApp Direct JPG Share Button */}
+          <button
+            onClick={handleWhatsAppJPG}
+            disabled={isSharing || dayCashTxs.length === 0}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            title="Share Note Denomination Sheet directly to WhatsApp as high-res JPG"
+          >
+            {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+            <span>WhatsApp JPG</span>
+          </button>
+
           {/* Top Share JPG Action Switch */}
           <button
             onClick={handleShareJPG}
             disabled={isSharing || dayCashTxs.length === 0}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
             title="Share Note Demonstration Sheet with Firm Name as JPG image"
           >
             {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-            <span>Share JPG</span>
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
+          {/* Direct JPG Save to Phone Storage */}
+          <button
+            onClick={handleDownloadJPG}
+            disabled={isSharing || dayCashTxs.length === 0}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            title="Save high-resolution JPG image to phone Documents / device storage"
+          >
+            <Image className="w-4 h-4" />
+            <span className="hidden sm:inline">Save JPG</span>
           </button>
 
           {/* Download PDF Slip Button */}
           <button
             onClick={handleDownloadPDF}
             disabled={dayCashTxs.length === 0}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
             title="Download Bank Cash Deposit Slip PDF"
           >
             <FileDown className="w-4 h-4" /> 
-            <span className="hidden sm:inline">Deposit Slip PDF</span>
+            <span className="hidden sm:inline">Deposit PDF</span>
           </button>
         </div>
+      </div>
+
+      {/* Quick Date Selector Strip */}
+      <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 flex items-center gap-2 overflow-x-auto">
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-2 whitespace-nowrap flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-blue-500" /> Cash Dates:
+        </span>
+
+        {/* All Dates Consolidated Pill */}
+        <button
+          onClick={() => setSelectedDate('ALL')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            selectedDate === 'ALL'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+          }`}
+        >
+          <span>All Dates Consolidated</span>
+        </button>
+
+        {/* Dynamic date pills for all dates having cash receipts */}
+        {datesWithCash.map((d) => {
+          const isSelected = selectedDate === d.date;
+          return (
+            <button
+              key={d.date}
+              onClick={() => setSelectedDate(d.date)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                isSelected
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <span>{formatDate(d.date)}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                isSelected ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {formatCurrency(d.total)} ({d.count} rx)
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Quick Firm Filter Pills / Summary Strip */}
@@ -379,10 +541,10 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
             <Coins className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-black text-emerald-700 mt-1">
-            {formatCurrency(aggregatedDenoms.totalAmount || 0)}
+            {formatCurrency(effectiveDenoms.totalAmount || 0)}
           </div>
           <p className="text-[11px] text-emerald-800/80 mt-1">
-            {numberToWordsINR(aggregatedDenoms.totalAmount || 0)}
+            {numberToWordsINR(effectiveDenoms.totalAmount || 0)}
           </p>
         </div>
 
@@ -394,10 +556,10 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
             <Calculator className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-black text-blue-700 mt-1">
-            {aggregatedDenoms.totalNotes} Pieces
+            {effectiveDenoms.totalNotes} Pieces
           </div>
           <p className="text-[11px] text-blue-800/80 mt-1">
-            Loose coins: {formatCurrency(aggregatedDenoms.coins || 0)}
+            Loose coins: {formatCurrency(effectiveDenoms.coins || 0)}
           </p>
         </div>
 
@@ -438,11 +600,22 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
 
           {/* Action Switch Toolbar right at the Re-Tally table */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* WhatsApp JPG Direct Share */}
+            <button
+              onClick={handleWhatsAppJPG}
+              disabled={isSharing || dayCashTxs.length === 0}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Directly share denomination chart to WhatsApp as JPG image"
+            >
+              {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+              <span>WhatsApp JPG</span>
+            </button>
+
             {/* Share Switch */}
             <button
               onClick={handleShareJPG}
               disabled={isSharing || dayCashTxs.length === 0}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
               title="Share note demonstration with firm name as JPG image on WhatsApp / Apps"
             >
               {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
@@ -454,10 +627,24 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
               onClick={handleDownloadJPG}
               disabled={isSharing || dayCashTxs.length === 0}
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Download high-resolution JPG image file"
+              title="Save high-resolution JPG image to phone Documents / device storage"
             >
               <Image className="w-3.5 h-3.5 text-slate-600" />
               <span>Save JPG</span>
+            </button>
+
+            {/* Auto-Break Notes Toggle */}
+            <button
+              onClick={() => setAutoBreakdownCoins(!autoBreakdownCoins)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                autoBreakdownCoins
+                  ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Automatically break uncounted/loose cash into standard bank currency notes"
+            >
+              <Zap className={`w-3.5 h-3.5 ${autoBreakdownCoins ? 'text-amber-600 fill-amber-500' : 'text-slate-400'}`} />
+              <span>{autoBreakdownCoins ? 'Auto-Break: ON' : 'Auto-Break Notes'}</span>
             </button>
 
             {/* Date Badge */}
@@ -508,10 +695,10 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
                   GRAND TOTAL CASH ({activeFirm ? activeFirm.name : 'ALL FIRMS'})
                 </td>
                 <td className="p-4 text-center font-mono text-base text-emerald-950 font-black">
-                  {aggregatedDenoms.totalNotes} Notes
+                  {effectiveDenoms.totalNotes} Notes
                 </td>
                 <td className="p-4 text-right text-base text-emerald-700 font-black">
-                  {formatCurrency(aggregatedDenoms.totalAmount || 0)}
+                  {formatCurrency(effectiveDenoms.totalAmount || 0)}
                 </td>
                 <td className="p-4 text-right text-emerald-800">100.0%</td>
               </tr>
