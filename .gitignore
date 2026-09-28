@@ -12,7 +12,6 @@ dist
 dist-ssr
 *.local
 *.apk
-cloud-data
 scratch
 android/app/build
 android/.gradle
