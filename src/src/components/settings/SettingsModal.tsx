@@ -1239,7 +1239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }`}
                       >
                         <Globe className="w-3 h-3 text-blue-500" />
-                        <span>Cloudflare HTTPS (Live Tunnel)</span>
+                        <span>24/7 Cloud Server (Render)</span>
                       </button>
 
                       <button
