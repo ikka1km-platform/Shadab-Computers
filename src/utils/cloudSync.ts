@@ -117,23 +117,18 @@ export async function cloudFetch(url: string, options: CloudFetchOptions = {}): 
     // Intelligent auto-fallback: if the primary URL fails, try alternate route (Local Wi-Fi or Live Tunnel)
     try {
       const parsed = new URL(url);
-      const isCloudflare = url.includes('trycloudflare.com');
-      const isLocal = url.includes('10.218.3.180') || url.includes('localhost');
-
       let fallbackBase: string | null = null;
-      if (isCloudflare) {
-        fallbackBase = DEFAULT_LOCAL_WIFI_URL;
-      } else if (isLocal) {
+      if (url !== DEFAULT_PUBLIC_CLOUD_URL && !url.startsWith(DEFAULT_PUBLIC_CLOUD_URL)) {
         fallbackBase = DEFAULT_PUBLIC_CLOUD_URL;
       }
 
       if (fallbackBase) {
         const fallbackUrl = `${fallbackBase}${parsed.pathname}${parsed.search}`;
         if (fallbackUrl !== url) {
-          console.log(`[CloudSync] Primary URL failed, trying fallback: ${fallbackUrl}`);
+          console.log(`[CloudSync] Primary URL failed, trying permanent Render cloud: ${fallbackUrl}`);
           const fallbackRes = await singleFetch(fallbackUrl, options);
           if (fallbackRes.ok || (fallbackRes.status >= 400 && fallbackRes.status < 500)) {
-            // Succeeded! Update active preference so subsequent requests connect smoothly
+            // Succeeded! Clear stale temporary URL and stick to permanent Render cloud
             if (typeof window !== 'undefined') {
               localStorage.setItem(STORAGE_CLOUD_API_KEY, fallbackBase);
             }
@@ -339,7 +334,7 @@ export async function syncFirmWithCloudServer(
   const baseUrl = getCloudServerUrl();
   let token = getCloudAuthToken(firmId);
 
-  // If token is missing, attempt auto-initialization from local database with full existing records
+  // If token is missing, attempt auto-initialization or authentication from local database
   if (!token) {
     const profile = await db.businessProfile.toArray().then((p) => p[0]);
     const parties = await db.parties.toArray();
@@ -350,17 +345,29 @@ export async function syncFirmWithCloudServer(
     const coWorkers = await db.coWorkers.toArray();
     const localVault = { parties, transactions, items, bankAccounts, firms, coWorkers };
 
-    const initRes = await initFirmOnCloud(
-      firmId,
-      profile?.businessName || 'VYApaar Business',
-      profile?.securityPin || '1234',
-      localVault
-    );
-    token = initRes.token;
+    try {
+      const initRes = await initFirmOnCloud(
+        firmId,
+        profile?.businessName || 'Shadab Computers',
+        profile?.securityPin || '1234',
+        localVault
+      );
+      token = initRes.token;
+    } catch {
+      try {
+        const authRes = await authenticateFirmOnCloud(firmId, profile?.securityPin || '1234');
+        token = authRes.token;
+      } catch (authErr) {
+        console.warn('Auto cloud auth fallback error:', authErr);
+      }
+    }
   }
 
   const deviceId = getOrCreateDeviceId();
-  const res = await cloudFetch(`${baseUrl}/api/firm/sync`, {
+  const allLocalTxs = await db.transactions.toArray();
+  const allLocalParties = await db.parties.toArray();
+
+  let res = await cloudFetch(`${baseUrl}/api/firm/sync`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -371,15 +378,40 @@ export async function syncFirmWithCloudServer(
       firmId,
       deviceId,
       pendingQueue,
+      localTransactions: allLocalTxs,
+      localParties: allLocalParties,
     },
   });
 
+  // If 401 or 403, clear stale token, re-authenticate immediately, and retry once
+  if (!res.ok && (res.status === 401 || res.status === 403)) {
+    clearCloudAuthToken(firmId);
+    try {
+      const profile = await db.businessProfile.toArray().then((p) => p[0]);
+      const authRes = await authenticateFirmOnCloud(firmId, profile?.securityPin || '1234');
+      token = authRes.token;
+      res = await cloudFetch(`${baseUrl}/api/firm/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-firm-id': firmId,
+        },
+        body: {
+          firmId,
+          deviceId,
+          pendingQueue,
+          localTransactions: allLocalTxs,
+          localParties: allLocalParties,
+        },
+      });
+    } catch (retryErr) {
+      console.warn('Re-authentication retry failed:', retryErr);
+    }
+  }
+
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    // If token invalid, clear it so next sync can re-authenticate
-    if (res.status === 401 || res.status === 403) {
-      clearCloudAuthToken(firmId);
-    }
     throw new Error(errorData.error || `Sync failed with HTTP ${res.status}`);
   }
 

@@ -415,19 +415,35 @@ export async function syncFirmCloudVault(
   profile: BusinessProfile,
   onProfileUpdate: (updated: Partial<BusinessProfile>) => Promise<void>
 ): Promise<CloudSyncStatusReport> {
-  const firmAccount = profile.firmCloudAccount;
-  const firmId = profile.firmId || firmAccount?.firmId || 'FIRM_DEFAULT';
+  let firmAccount = profile.firmCloudAccount;
+  const firmId = profile.firmId || firmAccount?.firmId || 'FIRM_MUI8HFY6_47UPAJ';
   const curDeviceId = getOrCreateDeviceId();
 
-  // If cloud account is not connected
+  // If cloud account is not connected or email is missing, auto-connect to permanent cloud
   if (!firmAccount || firmAccount.cloudConnectionStatus === 'DISCONNECTED' || !firmAccount.cloudAccountEmail) {
-    return {
-      status: 'DISCONNECTED',
-      accountEmail: firmAccount?.cloudAccountEmail,
+    firmAccount = {
       firmId,
-      pendingQueueCount: await db.syncQueue.count(),
-      activeDevicesCount: firmAccount?.activeDevices?.length || 1,
+      cloudProvider: 'GOOGLE_DRIVE',
+      cloudAccountEmail: firmAccount?.cloudAccountEmail || `${firmId.toLowerCase()}@vyapaar-cloud.internal`,
+      cloudConnectionStatus: 'CONNECTED',
+      cloudConnectedAt: new Date().toISOString(),
+      cloudLastSyncAt: new Date().toISOString(),
+      cloudSyncCursor: Date.now(),
+      cloudSyncVersion: 1,
+      cloudDeviceId: curDeviceId,
+      cloudOwnerDeviceId: curDeviceId,
+      activeDevices: firmAccount?.activeDevices || [
+        {
+          deviceId: curDeviceId,
+          deviceName: 'Active Terminal',
+          role: 'Owner',
+          lastSyncAt: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      autoSyncEnabled: true,
     };
+    await onProfileUpdate({ firmCloudAccount: firmAccount });
   }
 
   // 1. OFFLINE CHECK

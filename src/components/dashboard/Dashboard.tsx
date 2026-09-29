@@ -53,11 +53,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? transactions
     : transactions.filter((t) => t.firmId === Number(selectedFirmId));
 
-  const totalReceivable = parties
+  const firmParties = selectedFirmId === 'ALL'
+    ? parties
+    : parties.filter((p) => !p.firmId || p.firmId === Number(selectedFirmId));
+
+  const totalReceivable = firmParties
     .filter((p) => p.partyType === 'CUSTOMER' && p.currentBalance > 0)
     .reduce((acc, p) => acc + p.currentBalance, 0);
 
-  const totalPayable = parties
+  const totalPayable = firmParties
     .filter((p) => p.partyType === 'SUPPLIER' && p.currentBalance < 0)
     .reduce((acc, p) => acc + Math.abs(p.currentBalance), 0);
 

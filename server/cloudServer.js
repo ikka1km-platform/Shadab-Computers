@@ -391,7 +391,7 @@ app.get('/api/firm/vault', requireFirmAuth, (req, res) => {
 app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
   try {
     const firmId = req.firmId;
-    const { clientSyncVersion = 0, deviceId, pendingQueue = [] } = req.body;
+    const { clientSyncVersion = 0, deviceId, pendingQueue = [], localTransactions = [], localParties = [] } = req.body;
 
     const vault = getFirmVault(firmId);
     if (!vault) {
@@ -400,7 +400,35 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
 
     let hasMutations = false;
 
-    // 1. Process incoming pending queue items with financial immutability
+    // 1a. Absorb full local transactions if sent by client to prevent data loss across devices
+    if (Array.isArray(localTransactions) && localTransactions.length > 0) {
+      const existingTxnKeys = new Set(vault.transactions.map(t => String(t.voucherNumber || t.id || t.invoiceNo)));
+      for (const tx of localTransactions) {
+        if (!tx) continue;
+        const key = String(tx.voucherNumber || tx.id || tx.invoiceNo);
+        if (!existingTxnKeys.has(key)) {
+          vault.transactions.push(tx);
+          existingTxnKeys.add(key);
+          hasMutations = true;
+        }
+      }
+    }
+
+    // 1b. Absorb local parties if sent by client
+    if (Array.isArray(localParties) && localParties.length > 0) {
+      const existingPartyMap = new Map(vault.parties.map(p => [p.name?.toLowerCase().trim(), p]));
+      for (const p of localParties) {
+        if (!p || !p.name) continue;
+        const pKey = p.name.toLowerCase().trim();
+        if (!existingPartyMap.has(pKey)) {
+          vault.parties.push(p);
+          existingPartyMap.set(pKey, p);
+          hasMutations = true;
+        }
+      }
+    }
+
+    // 1c. Process incoming pending queue items with financial immutability
     if (Array.isArray(pendingQueue) && pendingQueue.length > 0) {
       for (const qItem of pendingQueue) {
         const { entityType, action, payload } = qItem;

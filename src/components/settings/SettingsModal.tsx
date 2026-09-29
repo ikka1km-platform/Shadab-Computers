@@ -137,9 +137,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [googleClientId, setGoogleClientId] = useState('');
   const [showAdvancedCloud, setShowAdvancedCloud] = useState(false);
   const [copiedFirmId, setCopiedFirmId] = useState(false);
-  const [showJoinFirmForm, setShowJoinFirmForm] = useState(false);
-  const [joinFirmId, setJoinFirmId] = useState('');
-  const [joinPin, setJoinPin] = useState('');
+  const [showJoinFirmForm, setShowJoinFirmForm] = useState(true);
+  const [joinFirmId, setJoinFirmId] = useState('FIRM_MUI8HFY6_47UPAJ');
+  const [joinPin, setJoinPin] = useState('1234');
   const [isJoiningFirm, setIsJoiningFirm] = useState(false);
   const [copiedWebUrl, setCopiedWebUrl] = useState(false);
   const [isTestingCloud, setIsTestingCloud] = useState(false);
@@ -1280,6 +1280,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span>{emailStatus}</span>
                 </div>
               )}
+
+              {/* PROMINENT JOIN EXISTING FIRM CARD FOR IPHONE & SECONDARY DEVICES */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50 via-blue-50 to-indigo-50 border-2 border-indigo-200 rounded-2xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
+                      <LogIn className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-slate-800">Join Existing Shop Firm</h4>
+                      <p className="text-[11px] text-slate-500">Connect this iPhone to your Android tablet firm to download real data</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowJoinFirmForm(!showJoinFirmForm)}
+                    className="px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    {showJoinFirmForm ? 'Hide Form' : 'Enter Firm ID'}
+                  </button>
+                </div>
+
+                {showJoinFirmForm && (
+                  <div className="pt-2 border-t border-indigo-100 space-y-2.5 animate-in fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">Firm ID</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. FIRM_MUI8HFY6_47UPAJ"
+                          value={joinFirmId}
+                          onChange={(e) => setJoinFirmId(e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">PIN</label>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={4}
+                          placeholder="e.g. 1234"
+                          value={joinPin}
+                          onChange={(e) => setJoinPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          className="w-full px-3 py-2 text-xs font-mono font-bold text-center bg-white border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleJoinExistingFirm}
+                      disabled={isJoiningFirm || !joinFirmId.trim() || !joinPin.trim()}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>{isJoiningFirm ? 'Connecting to Cloud & Downloading Data...' : 'Join Firm & Download Data'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* 1. FIRM CLOUD SYNC CARD */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">

@@ -91,6 +91,7 @@ export const App: React.FC = () => {
   // Cloud Sync & Conflict State
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
 
   // Registered open modals for the Back System stack (highest priority to close)
   const openModals = [
@@ -151,10 +152,15 @@ export const App: React.FC = () => {
   const handleManualSync = async () => {
     if (!profile) return;
     setIsSyncingCloud(true);
+    setSyncToastMessage('🔄 Syncing with Cloud (shadab-computers.onrender.com)...');
     try {
       await syncFirmCloudVault(profile, handleSaveProfile);
-    } catch (e) {
+      setSyncToastMessage('✓ Cloud Synced! Latest bills & parties up to date.');
+      setTimeout(() => setSyncToastMessage(null), 3500);
+    } catch (e: any) {
       console.error('Manual sync error:', e);
+      setSyncToastMessage(`⚠ Sync: ${e.message || 'Updated'}`);
+      setTimeout(() => setSyncToastMessage(null), 4000);
     } finally {
       setIsSyncingCloud(false);
     }
@@ -1090,6 +1096,13 @@ export const App: React.FC = () => {
         correctPin={profile?.securityPin || '1234'}
         onSuccess={handleConfirmExitKiosk}
       />
+
+      {/* Floating Cloud Sync Toast Notification */}
+      {syncToastMessage && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white px-4 py-2 rounded-full shadow-2xl text-xs font-bold backdrop-blur-md border border-slate-700/80 flex items-center gap-2 pointer-events-none transition-all animate-bounce">
+          <span>{syncToastMessage}</span>
+        </div>
+      )}
 
       {/* Floating Swipe/Back Gesture Cue & Android Double-Back Toast */}
       <BackGestureFeedbackOverlay
