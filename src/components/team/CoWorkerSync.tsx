@@ -77,6 +77,17 @@ export const CoWorkerSync: React.FC<CoWorkerSyncProps> = ({
     showToast(newState ? '✓ Auto Cloud Sync Enabled (Live Sync Active)' : 'Auto Cloud Sync Paused');
   };
 
+  const handleSwitchToOwner = () => {
+    if (activeSession.role === 'Owner') return;
+    const masterPin = profile?.securityPin || (profile as any)?.ownerPin || '1234';
+    const entered = window.prompt('Enter Master Owner PIN:');
+    if (entered === masterPin) {
+      onSelectUser({ type: 'OWNER', name: `${profile?.businessName || 'Owner'} (Admin)`, role: 'Owner' });
+    } else if (entered !== null) {
+      alert('Incorrect Master PIN.');
+    }
+  };
+
   // Base app link for sharing - always resolves to public HTTPS cloud URL
   const appBaseUrl = useMemo(() => {
     return getCloudServerUrl();
@@ -295,7 +306,7 @@ export const CoWorkerSync: React.FC<CoWorkerSyncProps> = ({
 
           <button
             type="button"
-            onClick={() => onSelectUser({ type: 'OWNER', name: 'Owner (Admin)', role: 'Owner' })}
+            onClick={handleSwitchToOwner}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
               activeSession.role === 'Owner'
                 ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'

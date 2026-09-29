@@ -265,6 +265,7 @@ export async function authenticateFirmOnCloud(
   firmName: string;
   role: string;
   workerName: string;
+  workerId?: number;
   token: string;
   syncVersion: number;
   vault: any;
@@ -366,6 +367,7 @@ export async function syncFirmWithCloudServer(
   const deviceId = getOrCreateDeviceId();
   const allLocalTxs = await db.transactions.toArray();
   const allLocalParties = await db.parties.toArray();
+  const allLocalWorkers = await db.coWorkers.toArray();
 
   let res = await cloudFetch(`${baseUrl}/api/firm/sync`, {
     method: 'POST',
@@ -380,6 +382,7 @@ export async function syncFirmWithCloudServer(
       pendingQueue,
       localTransactions: allLocalTxs,
       localParties: allLocalParties,
+      localCoWorkers: allLocalWorkers,
     },
   });
 
@@ -403,6 +406,7 @@ export async function syncFirmWithCloudServer(
           pendingQueue,
           localTransactions: allLocalTxs,
           localParties: allLocalParties,
+          localCoWorkers: allLocalWorkers,
         },
       });
     } catch (retryErr) {
@@ -537,7 +541,7 @@ export async function isLocalDatabaseDemoData(): Promise<boolean> {
  */
 export async function hydrateDexieWithCloudVault(
   vault: any,
-  options: { clearExisting?: boolean; forceReload?: boolean } = {}
+  options: { clearExisting?: boolean; forceReload?: boolean; userSession?: any } = {}
 ): Promise<void> {
   if (!vault || !vault.firmId) {
     throw new Error('Invalid cloud firm vault data received.');
@@ -723,13 +727,27 @@ export async function hydrateDexieWithCloudVault(
     localStorage.setItem('vyapar_initialized', 'clean_user_company');
     localStorage.setItem('vyapar_mobile_auth_verified', 'true');
 
-    const activeSession = {
-      type: 'OWNER' as const,
-      name: `${realFirmName} (Admin)`,
-      phone: defaultFirm?.phone || '',
-      role: 'Owner' as const,
-    };
-    localStorage.setItem('vyapar_active_session', JSON.stringify(activeSession));
+    let sessionToSave = options.userSession;
+    if (!sessionToSave) {
+      const existingRaw = localStorage.getItem('vyapar_active_session');
+      if (existingRaw) {
+        try {
+          const parsed = JSON.parse(existingRaw);
+          if (parsed && parsed.role && parsed.role !== 'Owner') {
+            sessionToSave = parsed;
+          }
+        } catch {}
+      }
+    }
+    if (!sessionToSave) {
+      sessionToSave = {
+        type: 'OWNER' as const,
+        name: `${realFirmName} (Admin)`,
+        phone: defaultFirm?.phone || '',
+        role: 'Owner' as const,
+      };
+    }
+    localStorage.setItem('vyapar_active_session', JSON.stringify(sessionToSave));
 
     // Clear any transient join query params from address bar
     try {

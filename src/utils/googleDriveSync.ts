@@ -729,6 +729,16 @@ export async function acceptWorkerCloudInvitation(
         firmCloudAccount: updatedAccount,
       });
 
+      if (typeof window !== 'undefined') {
+        const staffSession = {
+          type: 'COWORKER' as const,
+          name: res.workerName,
+          role: (res.role || 'Salesman') as any,
+        };
+        localStorage.setItem('vyapar_active_session', JSON.stringify(staffSession));
+        localStorage.setItem('vyapar_mobile_auth_verified', 'true');
+      }
+
       return {
         success: true,
         workerName: res.workerName,
@@ -786,6 +796,17 @@ export async function acceptWorkerCloudInvitation(
       }
     } catch (syncErr) {
       console.warn('Initial download during invite acceptance notice:', syncErr);
+    }
+
+    if (typeof window !== 'undefined') {
+      const staffSession = {
+        type: 'COWORKER' as const,
+        id: payload.wid,
+        name: payload.wn,
+        role: (payload.wr || 'Salesman') as any,
+      };
+      localStorage.setItem('vyapar_active_session', JSON.stringify(staffSession));
+      localStorage.setItem('vyapar_mobile_auth_verified', 'true');
     }
 
     return {

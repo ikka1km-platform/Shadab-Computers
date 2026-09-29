@@ -40,12 +40,22 @@ export const UserSwitcherModal: React.FC<UserSwitcherModalProps> = ({
   if (!isOpen) return null;
 
   const handleSelectOwner = () => {
-    onSelectUser({
-      type: 'OWNER',
-      name: 'Owner (Master Admin)',
-      role: 'Owner',
-    });
-    onClose();
+    if (activeSession.role === 'Owner') {
+      onClose();
+      return;
+    }
+    const validOwnerPin = ownerPin?.trim() || '1234';
+    const entered = window.prompt('Enter Owner Master PIN:');
+    if (entered === validOwnerPin || entered === '0000') {
+      onSelectUser({
+        type: 'OWNER',
+        name: 'Owner (Master Admin)',
+        role: 'Owner',
+      });
+      onClose();
+    } else if (entered !== null) {
+      alert('Incorrect Master PIN.');
+    }
   };
 
   const handleSelectCoWorker = (worker: CoWorker) => {
@@ -67,19 +77,26 @@ export const UserSwitcherModal: React.FC<UserSwitcherModalProps> = ({
 
     if (!pinInput.trim()) return;
 
-    // Check if matches owner or coworker PIN
-    const validOwnerPin = ownerPin?.trim() || '1234';
-    if (pinInput.trim() === '0000' || pinInput.trim() === validOwnerPin) {
-      handleSelectOwner();
-      return;
-    }
-
+    // Check coworker PINs first so worker with 1234 is not elevated to Owner
     const matched = coWorkers.find((w) => w.pin && w.pin.trim() === pinInput.trim());
     if (matched) {
       handleSelectCoWorker(matched);
-    } else {
-      setPinError('Invalid PIN code. Please enter a valid 4-digit staff PIN.');
+      return;
     }
+
+    // Check owner PIN
+    const validOwnerPin = ownerPin?.trim() || '1234';
+    if (pinInput.trim() === '0000' || pinInput.trim() === validOwnerPin) {
+      onSelectUser({
+        type: 'OWNER',
+        name: 'Owner (Master Admin)',
+        role: 'Owner',
+      });
+      onClose();
+      return;
+    }
+
+    setPinError('Invalid PIN code. Please enter a valid 4-digit staff PIN.');
   };
 
   return (

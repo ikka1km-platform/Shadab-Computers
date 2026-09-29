@@ -135,16 +135,16 @@ export const getAllowedTransactionTypes = (role: 'Owner' | UserRole): Transactio
 
 export const getFilteredNavTabs = (role: 'Owner' | UserRole): NavTab[] => {
   if (role === 'Salesman') {
-    // Salesman sees: Dashboard (Sales KPI), Catalogue & Stock, Customers & Ledgers, and Co-Workers/Sync
-    return ['dashboard', 'items', 'parties', 'team'];
+    // Salesman sees: Dashboard (Sales KPI), Catalogue & Stock, Customers & Ledgers
+    return ['dashboard', 'items', 'parties'];
   }
   if (role === 'Biller') {
-    // Biller sees: Dashboard, POS/Daily Cashbook, Cash Note Retally, Items, Parties, Co-Workers
-    return ['dashboard', 'daybook', 'cash_tally', 'items', 'parties', 'team'];
+    // Biller sees: Dashboard, POS/Daily Cashbook, Cash Note Retally, Items, Parties
+    return ['dashboard', 'daybook', 'cash_tally', 'items', 'parties'];
   }
   if (role === 'Other') {
     // Warehouse / Dispatch / Helper: Catalog stock & Dashboard
-    return ['dashboard', 'items', 'team'];
+    return ['dashboard', 'items'];
   }
   // Owner & Secondary Admin see all tabs
   return ['dashboard', 'parties', 'cash_tally', 'daybook', 'items', 'reports', 'team'];

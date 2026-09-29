@@ -33,6 +33,7 @@ interface PartyDetailProps {
   onDeleteParty?: (partyId: number) => Promise<void> | void;
   onOpenTxModal: (type: any, partyId?: number) => void;
   onEditTx?: (tx: Transaction) => void;
+  onDeleteTx?: (txId: number) => Promise<void> | void;
 }
 
 export const PartyDetail: React.FC<PartyDetailProps> = ({
@@ -46,6 +47,7 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
   onDeleteParty,
   onOpenTxModal,
   onEditTx,
+  onDeleteTx,
 }) => {
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [voucherToShare, setVoucherToShare] = useState<Transaction | null>(null);
@@ -388,6 +390,19 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
                           className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5 inline" />
+                        </button>
+                      )}
+                      {onDeleteTx && row.tx.id && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete voucher ${row.tx.voucherNumber || row.tx.type} for ₹${row.tx.amount}?`)) {
+                              onDeleteTx(row.tx.id!);
+                            }
+                          }}
+                          title="Delete Transaction Voucher"
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 inline" />
                         </button>
                       )}
                       <button

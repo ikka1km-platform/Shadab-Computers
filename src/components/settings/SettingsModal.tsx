@@ -446,8 +446,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       setCloudStatusMsg(`✓ Authenticated with ${res.firmName || cleanFirmId}! Hydrating business data...`);
 
+      const userSession = {
+        type: res.role === 'Owner' ? 'OWNER' : 'COWORKER',
+        id: res.workerId,
+        name: res.workerName || (res.role === 'Owner' ? `${res.firmName || cleanFirmId} (Admin)` : 'Staff'),
+        role: res.role || 'Owner',
+      };
+
       // Complete hydration: clear demo records, populate with downloaded vault, recompute balances, and reload
-      await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
+      await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true, userSession });
     } catch (err: any) {
       console.error('Join firm error:', err);
       alert(`Failed to join firm: ${err.message || err}`);

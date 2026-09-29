@@ -14,7 +14,8 @@ import {
   FileSpreadsheet,
   ArrowRightLeft,
   ArrowLeftRight,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { Transaction, Party, BusinessProfile, Firm, BankAccount } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -35,6 +36,7 @@ interface DaybookProps {
   initialFirmId?: number | 'ALL';
   onOpenTxModal: (type?: any) => void;
   onEditTx?: (tx: Transaction) => void;
+  onDeleteTx?: (txId: number) => Promise<void> | void;
 }
 
 export const Daybook: React.FC<DaybookProps> = ({
@@ -46,6 +48,7 @@ export const Daybook: React.FC<DaybookProps> = ({
   initialFirmId = 'ALL',
   onOpenTxModal,
   onEditTx,
+  onDeleteTx,
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -440,6 +443,19 @@ export const Daybook: React.FC<DaybookProps> = ({
                               title="Edit Voucher / Receipt"
                             >
                               <Edit3 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {onDeleteTx && tx.id && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Delete voucher ${tx.voucherNumber || tx.type} of ₹${tx.amount}?`)) {
+                                  onDeleteTx(tx.id!);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Voucher"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                           <button

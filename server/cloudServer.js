@@ -307,18 +307,18 @@ app.post('/api/firm/auth', (req, res) => {
     const inputPinHash = hashPin(pin, authData.salt);
     let userRole = null;
     let userName = 'User';
+    let workerId = null;
 
-    // 1. Check Owner PIN
-    if (authData.ownerPinHash === inputPinHash || pin === '1234' && !authData.ownerPinHash) {
+    // 1. Check Co-Worker PINs in Vault FIRST!
+    const matchingWorker = (vault.coWorkers || []).find(w => String(w.pin) === String(pin) && w.status !== 'INACTIVE');
+    if (matchingWorker) {
+      userRole = matchingWorker.role || 'Salesman';
+      userName = matchingWorker.name || 'Co-Worker';
+      workerId = matchingWorker.id;
+    } else if (authData.ownerPinHash === inputPinHash || (pin === '1234' && !authData.ownerPinHash)) {
+      // 2. Check Owner PIN
       userRole = 'Owner';
       userName = 'Owner Terminal';
-    } else {
-      // 2. Check Co-Worker PINs in Vault
-      const matchingWorker = (vault.coWorkers || []).find(w => String(w.pin) === String(pin) && w.status !== 'INACTIVE');
-      if (matchingWorker) {
-        userRole = matchingWorker.role || 'Salesman';
-        userName = matchingWorker.name || 'Co-Worker';
-      }
     }
 
     if (!userRole) {
@@ -331,6 +331,7 @@ app.post('/api/firm/auth', (req, res) => {
     authData.tokens[token] = {
       role: userRole,
       name: userName,
+      workerId,
       deviceId,
       deviceName,
       issuedAt: new Date().toISOString()
@@ -363,6 +364,7 @@ app.post('/api/firm/auth', (req, res) => {
       firmName: authData.firmName || vault.appName,
       role: userRole,
       workerName: userName,
+      workerId,
       token,
       syncVersion: vault.syncVersion,
       vault
@@ -391,7 +393,7 @@ app.get('/api/firm/vault', requireFirmAuth, (req, res) => {
 app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
   try {
     const firmId = req.firmId;
-    const { clientSyncVersion = 0, deviceId, pendingQueue = [], localTransactions = [], localParties = [] } = req.body;
+    const { clientSyncVersion = 0, deviceId, pendingQueue = [], localTransactions = [], localParties = [], localCoWorkers = [] } = req.body;
 
     const vault = getFirmVault(firmId);
     if (!vault) {
@@ -400,16 +402,50 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
 
     let hasMutations = false;
 
+    vault.deletedTxnKeys = vault.deletedTxnKeys || [];
+    vault.deletedPartyKeys = vault.deletedPartyKeys || [];
+
+    // Helper: Recalculate party balance accurately from remaining ledger transactions
+    const syncRecalculateParty = (partyName) => {
+      if (!partyName) return;
+      const pKey = partyName.toLowerCase().trim();
+      const party = vault.parties.find(p => p.name?.toLowerCase().trim() === pKey);
+      if (!party) return;
+      const partyTxns = vault.transactions.filter(t => t.partyName?.toLowerCase().trim() === pKey);
+      let balance = Number(party.openingBalance) || 0;
+      for (const t of partyTxns) {
+        const amt = Number(t.amount) || 0;
+        const paid = t.paidAmount !== undefined ? Number(t.paidAmount) : (t.paymentStatus === 'PAID' ? amt : 0);
+        const netDue = amt - paid;
+        if (party.partyType === 'SUPPLIER') {
+          if (t.type === 'PURCHASE') balance -= netDue;
+          else if (t.type === 'PAYMENT_OUT') balance += amt;
+          else if (t.type === 'DEBIT_NOTE') balance += amt;
+        } else {
+          // Customer
+          if (t.type === 'SALE') balance += netDue;
+          else if (t.type === 'PAYMENT_IN') balance -= amt;
+          else if (t.type === 'CREDIT_NOTE') balance -= amt;
+        }
+      }
+      party.currentBalance = balance;
+    };
+
     // 1a. Absorb full local transactions if sent by client to prevent data loss across devices
     if (Array.isArray(localTransactions) && localTransactions.length > 0) {
       const existingTxnKeys = new Set(vault.transactions.map(t => String(t.voucherNumber || t.id || t.invoiceNo)));
       for (const tx of localTransactions) {
         if (!tx) continue;
         const key = String(tx.voucherNumber || tx.id || tx.invoiceNo);
+        // CRITICAL: NEVER resurrect a deleted transaction!
+        if (vault.deletedTxnKeys.includes(key)) {
+          continue;
+        }
         if (!existingTxnKeys.has(key)) {
           vault.transactions.push(tx);
           existingTxnKeys.add(key);
           hasMutations = true;
+          syncRecalculateParty(tx.partyName);
         }
       }
     }
@@ -420,6 +456,10 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
       for (const p of localParties) {
         if (!p || !p.name) continue;
         const pKey = p.name.toLowerCase().trim();
+        const pCodeKey = String(p.accountCode || p.id || '');
+        if (vault.deletedPartyKeys.includes(pKey) || (pCodeKey && vault.deletedPartyKeys.includes(pCodeKey))) {
+          continue;
+        }
         if (!existingPartyMap.has(pKey)) {
           vault.parties.push(p);
           existingPartyMap.set(pKey, p);
@@ -428,7 +468,23 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
       }
     }
 
-    // 1c. Process incoming pending queue items with financial immutability
+    // 1c. Absorb local coWorkers if sent by client
+    if (Array.isArray(localCoWorkers) && localCoWorkers.length > 0) {
+      vault.coWorkers = vault.coWorkers || [];
+      for (const w of localCoWorkers) {
+        if (!w || !w.id) continue;
+        const existingIdx = vault.coWorkers.findIndex(ew => ew.id === w.id);
+        if (existingIdx === -1) {
+          vault.coWorkers.push(w);
+          hasMutations = true;
+        } else {
+          vault.coWorkers[existingIdx] = { ...vault.coWorkers[existingIdx], ...w };
+          hasMutations = true;
+        }
+      }
+    }
+
+    // 1d. Process incoming pending queue items with financial immutability
     if (Array.isArray(pendingQueue) && pendingQueue.length > 0) {
       for (const qItem of pendingQueue) {
         const { entityType, action, payload } = qItem;
@@ -439,55 +495,54 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
           const txnId = String(payload.voucherNumber || payload.id || payload.invoiceNo);
           const existingIdx = vault.transactions.findIndex(t => String(t.voucherNumber || t.id || t.invoiceNo) === txnId);
 
-          if (existingIdx === -1) {
+          if (action === 'DELETE') {
+            if (!vault.deletedTxnKeys.includes(txnId)) {
+              vault.deletedTxnKeys.push(txnId);
+            }
+            if (existingIdx !== -1) {
+              vault.transactions.splice(existingIdx, 1);
+            }
+            hasMutations = true;
+            syncRecalculateParty(payload.partyName);
+          } else if (existingIdx === -1) {
             // New transaction created on another device
-            vault.transactions.push(payload);
-            hasMutations = true;
-            appendFirmEvent(firmId, { action: 'TRANSACTION_CREATED', txnId, amount: payload.amount, type: payload.type, deviceId });
-          } else if (action === 'DELETE') {
-            // Soft delete or remove if explicitly requested
-            vault.transactions.splice(existingIdx, 1);
-            hasMutations = true;
+            if (!vault.deletedTxnKeys.includes(txnId)) {
+              vault.transactions.push(payload);
+              hasMutations = true;
+              appendFirmEvent(firmId, { action: 'TRANSACTION_CREATED', txnId, amount: payload.amount, type: payload.type, deviceId });
+              syncRecalculateParty(payload.partyName);
+            }
           } else {
             // Transaction update (e.g. status changed from pending to paid)
             vault.transactions[existingIdx] = { ...vault.transactions[existingIdx], ...payload };
             hasMutations = true;
-          }
-
-          // Recalculate related party balance dynamically from ledger
-          if (payload.partyName) {
-            const pKey = payload.partyName.toLowerCase().trim();
-            const party = vault.parties.find(p => p.name?.toLowerCase().trim() === pKey);
-            if (party) {
-              const partyTxns = vault.transactions.filter(t => t.partyName?.toLowerCase().trim() === pKey);
-              let totalCredit = 0; // payments in / sales return
-              let totalDebit = 0;  // sales / payments out
-              for (const t of partyTxns) {
-                const amt = Number(t.amount) || 0;
-                if (t.type === 'SALE') totalDebit += amt;
-                else if (t.type === 'PAYMENT_IN') totalCredit += amt;
-                else if (t.type === 'PURCHASE') totalCredit += amt;
-                else if (t.type === 'PAYMENT_OUT') totalDebit += amt;
-              }
-              const opening = Number(party.openingBalance) || 0;
-              party.currentBalance = opening + (totalDebit - totalCredit);
-            }
+            syncRecalculateParty(payload.partyName);
           }
         } else if (entityType === 'party') {
           const partyId = payload.id;
           const pNameKey = payload.name?.toLowerCase().trim();
+          const pKey = String(payload.accountCode || payload.id || payload.name);
           const existingIdx = vault.parties.findIndex(p => p.id === partyId || p.name?.toLowerCase().trim() === pNameKey);
 
-          if (existingIdx === -1) {
-            vault.parties.push(payload);
-            hasMutations = true;
+          if (action === 'DELETE') {
+            if (!vault.deletedPartyKeys.includes(pKey)) {
+              vault.deletedPartyKeys.push(pKey);
+            }
+            if (existingIdx !== -1) {
+              vault.parties.splice(existingIdx, 1);
+              hasMutations = true;
+            }
+          } else if (existingIdx === -1) {
+            if (!vault.deletedPartyKeys.includes(pKey)) {
+              vault.parties.push(payload);
+              hasMutations = true;
+            }
           } else {
             // Merge party fields safely without wiping ledger balance
             const existing = vault.parties[existingIdx];
             vault.parties[existingIdx] = {
               ...existing,
               ...payload,
-              // Keep calculated balance if remote has it
               currentBalance: payload.currentBalance !== undefined ? payload.currentBalance : existing.currentBalance
             };
             hasMutations = true;
@@ -508,7 +563,12 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
           const workerId = payload.id;
           const existingIdx = (vault.coWorkers || []).findIndex(w => w.id === workerId);
           vault.coWorkers = vault.coWorkers || [];
-          if (existingIdx === -1) {
+          if (action === 'DELETE') {
+            if (existingIdx !== -1) {
+              vault.coWorkers.splice(existingIdx, 1);
+              hasMutations = true;
+            }
+          } else if (existingIdx === -1) {
             vault.coWorkers.push(payload);
             hasMutations = true;
           } else {

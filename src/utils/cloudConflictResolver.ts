@@ -24,6 +24,8 @@ export async function mergeRemoteFirmVaultData(
     items?: Item[];
     bankAccounts?: BankAccount[];
     firms?: Firm[];
+    deletedTxnKeys?: string[];
+    deletedPartyKeys?: string[];
     lastUpdatedByDevice?: string;
   },
   localDeviceId: string
@@ -44,6 +46,32 @@ export async function mergeRemoteFirmVaultData(
   const remoteItemList = remoteVault.items || [];
   const remoteBankList = remoteVault.bankAccounts || [];
   const remoteFirmList = remoteVault.firms || [];
+  const deletedTxKeys = remoteVault.deletedTxnKeys || [];
+  const deletedPartyKeys = remoteVault.deletedPartyKeys || [];
+
+  // 0. PURGE REMOTELY DELETED TRANSACTIONS (Tombstones)
+  if (Array.isArray(deletedTxKeys) && deletedTxKeys.length > 0) {
+    for (const dKey of deletedTxKeys) {
+      const txs = await db.transactions
+        .filter((t) => String(t.voucherNumber) === String(dKey) || String(t.id) === String(dKey))
+        .toArray();
+      for (const tx of txs) {
+        if (tx.id) await db.transactions.delete(tx.id);
+      }
+    }
+  }
+
+  // 0b. PURGE REMOTELY DELETED PARTIES
+  if (Array.isArray(deletedPartyKeys) && deletedPartyKeys.length > 0) {
+    for (const pKey of deletedPartyKeys) {
+      const parties = await db.parties
+        .filter((p) => String(p.id) === String(pKey) || String(p.accountCode) === String(pKey) || p.name?.toLowerCase().trim() === String(pKey).toLowerCase().trim())
+        .toArray();
+      for (const p of parties) {
+        if (p.id) await db.parties.delete(p.id);
+      }
+    }
+  }
 
   // 1. MERGE PARTIES
   for (const rParty of remotePartyList) {

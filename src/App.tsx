@@ -20,7 +20,15 @@ import { PinLockScreen } from './components/common/PinLockScreen';
 import { ThermalSlipModal } from './components/transactions/ThermalSlipModal';
 import { ThermalPrinterManagerModal } from './components/printer/ThermalPrinterManagerModal';
 import { CoWorkerSync } from './components/team/CoWorkerSync';
-import { getStoredSession, saveUserSession, UserSession, isUserMobileLoggedIn, setMobileLoggedIn } from './utils/userSession';
+import { 
+  getStoredSession, 
+  saveUserSession, 
+  UserSession, 
+  isUserMobileLoggedIn, 
+  setMobileLoggedIn,
+  canManageCoWorkers,
+  canViewBusinessReports
+} from './utils/userSession';
 import { UserSwitcherModal } from './components/team/UserSwitcherModal';
 import { ShowroomExitModal } from './components/items/ShowroomExitModal';
 import { MobileLoginScreen } from './components/auth/MobileLoginScreen';
@@ -681,15 +689,44 @@ export const App: React.FC = () => {
   };
 
   const handleSaveCoWorker = async (data: Partial<CoWorker>) => {
+    let savedWorker: CoWorker | undefined;
     if (data.id) {
       await db.coWorkers.update(data.id, data);
+      savedWorker = await db.coWorkers.get(data.id);
     } else {
-      await db.coWorkers.add(data as CoWorker);
+      const id = await db.coWorkers.add(data as CoWorker);
+      savedWorker = await db.coWorkers.get(id as number);
+    }
+
+    if (savedWorker) {
+      await enqueueSyncItem({
+        entityType: 'coWorker',
+        entityId: String(savedWorker.id),
+        action: data.id ? 'UPDATE' : 'CREATE',
+        payload: savedWorker,
+        firmId: profile?.firmId,
+      });
+      if (profile) {
+        syncFirmCloudVault(profile, handleSaveProfile).catch(() => {});
+      }
     }
   };
 
   const handleDeleteCoWorker = async (id: number) => {
+    const existing = await db.coWorkers.get(id);
     await db.coWorkers.delete(id);
+    if (existing) {
+      await enqueueSyncItem({
+        entityType: 'coWorker',
+        entityId: String(id),
+        action: 'DELETE',
+        payload: existing,
+        firmId: profile?.firmId,
+      });
+      if (profile) {
+        syncFirmCloudVault(profile, handleSaveProfile).catch(() => {});
+      }
+    }
   };
 
   const handleResetDemo = async () => {
@@ -899,6 +936,7 @@ export const App: React.FC = () => {
               onDeleteParty={handleDeleteParty}
               onOpenTxModal={(t, pId) => handleOpenAddTx(t, pId || selectedParty.id)}
               onEditTx={handleOpenEditTx}
+              onDeleteTx={handleDeleteTx}
             />
           ) : activeTab === 'dashboard' ? (
             <Dashboard
@@ -931,6 +969,7 @@ export const App: React.FC = () => {
               initialFilter={partyListFilter}
               onSelectParty={(p) => setSelectedParty(p)}
               onOpenAddModal={handleOpenAddParty}
+              onEditParty={handleOpenEditParty}
               onDeleteParty={handleDeleteParty}
             />
           ) : activeTab === 'cash_tally' ? (
@@ -962,29 +1001,44 @@ export const App: React.FC = () => {
               initialFirmId={selectedFirmId}
               onOpenTxModal={(t) => handleOpenAddTx(t)}
               onEditTx={handleOpenEditTx}
+              onDeleteTx={handleDeleteTx}
             />
           ) : activeTab === 'team' ? (
-            <CoWorkerSync
-              coWorkers={coWorkers}
-              profile={profile}
-              activeSession={activeSession}
-              onSelectUser={(s) => {
-                setActiveSession(s);
-                saveUserSession(s);
-              }}
-              onSaveCoWorker={handleSaveCoWorker}
-              onDeleteCoWorker={handleDeleteCoWorker}
-            />
+            canManageCoWorkers(activeSession.role) ? (
+              <CoWorkerSync
+                coWorkers={coWorkers}
+                profile={profile}
+                activeSession={activeSession}
+                onSelectUser={(s) => {
+                  setActiveSession(s);
+                  saveUserSession(s);
+                }}
+                onSaveCoWorker={handleSaveCoWorker}
+                onDeleteCoWorker={handleDeleteCoWorker}
+              />
+            ) : (
+              <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <p className="font-bold text-slate-700">Access Restricted</p>
+                <p className="text-xs text-slate-500 mt-1">Staff management is only accessible by Business Owners and Administrators.</p>
+              </div>
+            )
           ) : (
-            <Reports
-              parties={parties}
-              transactions={transactions}
-              items={items}
-              profile={profile}
-              firms={firms}
-              bankAccounts={bankAccounts}
-              initialFirmId={selectedFirmId}
-            />
+            canViewBusinessReports(activeSession.role) ? (
+              <Reports
+                parties={parties}
+                transactions={transactions}
+                items={items}
+                profile={profile}
+                firms={firms}
+                bankAccounts={bankAccounts}
+                initialFirmId={selectedFirmId}
+              />
+            ) : (
+              <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <p className="font-bold text-slate-700">Access Restricted</p>
+                <p className="text-xs text-slate-500 mt-1">Financial reports and company profits are reserved for Business Owners.</p>
+              </div>
+            )
           )}
         </main>
 
