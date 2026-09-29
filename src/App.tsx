@@ -30,6 +30,7 @@ import { performDailyAutoBackup } from './utils/backupRestore';
 import { syncFirmCloudVault, acceptWorkerCloudInvitation } from './utils/googleDriveSync';
 import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault } from './utils/cloudSync';
 import { useBackNavigation, BackGestureFeedbackOverlay } from './utils/backNavigation';
+import { FloatingActionBar } from './components/common/FloatingActionBar';
 import { Lock, Tablet } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -92,6 +93,24 @@ export const App: React.FC = () => {
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
+
+  // Floating Action Switches Visibility on Scroll (Vyapar Mobile Pattern)
+  const [isQuickActionsVisible, setIsQuickActionsVisible] = useState(true);
+  const lastScrollTopRef = useRef(0);
+
+  const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
+    const currentScrollTop = e.currentTarget.scrollTop;
+    if (currentScrollTop <= 35) {
+      setIsQuickActionsVisible(true);
+    } else if (currentScrollTop > lastScrollTopRef.current + 10) {
+      // Scrolled down -> hide switches
+      setIsQuickActionsVisible(false);
+    } else if (currentScrollTop < lastScrollTopRef.current - 10) {
+      // Scrolled up -> show switches
+      setIsQuickActionsVisible(true);
+    }
+    lastScrollTopRef.current = currentScrollTop;
+  };
 
   // Registered open modals for the Back System stack (highest priority to close)
   const openModals = [
@@ -856,7 +875,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        <main className={`flex-1 p-2.5 sm:p-4 md:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full ${isCustomerKioskMode ? 'pb-8' : ''}`}>
+        <main onScroll={handleMainScroll} className={`flex-1 p-2.5 sm:p-4 md:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full ${isCustomerKioskMode ? 'pb-8' : 'pb-28 md:pb-12'}`}>
           {isCustomerKioskMode ? (
             <ItemList
               items={items}
@@ -968,6 +987,21 @@ export const App: React.FC = () => {
             />
           )}
         </main>
+
+        {/* Floating Vyapar-style Quick Action Switches (Take Payment, (+), Add Sale) with Auto-hide on Scroll */}
+        {!isCustomerKioskMode && !selectedParty && (activeTab === 'dashboard' || activeTab === 'parties' || activeTab === 'daybook') && (
+          <FloatingActionBar
+            isVisible={isQuickActionsVisible}
+            onTakePayment={() => handleOpenAddTx('PAYMENT_IN')}
+            onAddSale={() => handleOpenAddTx('SALE')}
+            onOpenTxModal={(type) => handleOpenAddTx(type)}
+            onOpenAddParty={() => handleOpenAddParty('CUSTOMER')}
+            onOpenAddItem={() => {
+              setItemToEdit(null);
+              setIsItemModalOpen(true);
+            }}
+          />
+        )}
       </div>
 
       {!isCustomerKioskMode && (

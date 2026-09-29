@@ -3,7 +3,8 @@ import {
   ArrowDownLeft, 
   ArrowUpRight, 
   Wallet, 
-  Building, 
+  Building,
+  Building2, 
   ShoppingCart, 
   Sparkles
 } from 'lucide-react';
@@ -112,59 +113,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6 pb-16 md:pb-6">
-      {/* Top Banner with Multi-Firm Selector */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-2xl p-3.5 sm:p-5 md:p-6 text-white shadow-md relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-blue-200 bg-blue-500/30 px-2.5 py-1 rounded-full border border-blue-400/20 inline-block">
-                Business Overview
-              </span>
-              {firms.length > 0 && (
-                <div className="flex items-center gap-1.5 bg-black/30 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/10 text-xs">
-                  <span className="text-slate-300">Active Firm:</span>
-                  <select
-                    value={selectedFirmId}
-                    onChange={(e) => onChangeFirmFilter && onChangeFirmFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                    className="bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
-                  >
-                    <option value="ALL" className="bg-slate-900 text-white">All Firms (Consolidated)</option>
-                    {firms.map((f) => (
-                      <option key={f.id} value={f.id} className="bg-slate-900 text-white">{f.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold">{profile?.businessName || 'Apex Traders'}</h2>
-            <p className="text-xs sm:text-sm text-blue-100/80 mt-0.5">
-              Welcome, <b className="text-white">{currentUserName || profile?.ownerName || 'User'}</b>
-              {currentRole !== 'Owner' && <span className="ml-1.5 px-2 py-0.5 bg-blue-500/30 rounded-full text-xs font-bold border border-blue-300/30">{currentRole} View</span>}.
-            </p>
+      {/* Sleek Compact Firm & Role Header Bar (Replaces bulky hero banner) */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/90 shadow-2xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Building2 className="w-4.5 h-4.5" />
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onOpenTxModal('SALE')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs md:text-sm px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <ShoppingCart className="w-4 h-4" /> + Add Sale
-            </button>
-            <button
-              onClick={() => onOpenTxModal('PAYMENT_IN')}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-medium text-xs md:text-sm px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <ArrowDownLeft className="w-4 h-4" /> + Receive (Receipt)
-            </button>
-            {isSupplierFinancesAllowed && (
-              <button
-                onClick={() => onOpenTxModal('PAYMENT_OUT')}
-                className="bg-rose-500 hover:bg-rose-600 text-white font-medium text-xs md:text-sm px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          {firms.length > 0 ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs text-slate-500 font-semibold shrink-0">Active Firm:</span>
+              <select
+                value={selectedFirmId}
+                onChange={(e) => onChangeFirmFilter && onChangeFirmFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold border border-slate-300 rounded-lg px-2.5 py-1 outline-none cursor-pointer text-xs truncate max-w-[210px] sm:max-w-xs transition-colors"
               >
-                <ArrowUpRight className="w-4 h-4" /> + Pay Money
-              </button>
-            )}
-          </div>
+                <option value="ALL">All Firms (Consolidated)</option>
+                {firms.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <span className="text-xs font-bold text-slate-900 truncate">
+              {profile?.businessName || 'Shadab Computers'}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 text-xs text-slate-500">
+          <span>Welcome, <b className="text-slate-800">{currentUserName || profile?.ownerName || 'Admin'}</b></span>
+          {currentRole !== 'Owner' && (
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[11px] font-extrabold border border-blue-200">
+              {currentRole} View
+            </span>
+          )}
         </div>
       </div>
 
