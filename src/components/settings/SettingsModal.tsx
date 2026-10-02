@@ -1206,7 +1206,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="text"
                           value={cloudServerUrlInput}
                           onChange={(e) => setCloudServerUrlInput(e.target.value)}
-                          placeholder="https://... or http://10.218.3.180:3000"
+                          placeholder={`https://... or ${DEFAULT_LOCAL_WIFI_URL}`}
                           className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
@@ -1259,7 +1259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }`}
                       >
                         <Wifi className="w-3 h-3 text-indigo-500" />
-                        <span>Local Wi-Fi (10.218.3.180:3000)</span>
+                        <span>Local Wi-Fi ({DEFAULT_LOCAL_WIFI_URL.replace(/^https?:\/\//, '')})</span>
                       </button>
                     </div>
                   </div>
