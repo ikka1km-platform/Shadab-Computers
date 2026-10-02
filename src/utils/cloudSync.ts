@@ -349,7 +349,7 @@ export async function syncFirmWithCloudServer(
     try {
       const initRes = await initFirmOnCloud(
         firmId,
-        profile?.businessName || 'Shadab Computers',
+        profile?.businessName || 'MS Shopping',
         profile?.securityPin || '1234',
         localVault
       );
@@ -561,7 +561,7 @@ export async function hydrateDexieWithCloudVault(
     vault.firms?.find((f: any) => f.isDefault)?.name ||
     vault.firms?.[0]?.name ||
     vault.appName ||
-    'Shadab Computers';
+    'MS Shopping';
 
   const defaultFirm = vault.firms?.find((f: any) => f.isDefault) || vault.firms?.[0];
 

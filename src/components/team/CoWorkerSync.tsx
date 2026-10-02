@@ -141,7 +141,8 @@ export const CoWorkerSync: React.FC<CoWorkerSyncProps> = ({
       roleDescription = `%0A👥 *Role:* ${worker.role}`;
     }
 
-    const text = `👋 Hello *${worker.name}*,%0A%0AYou have been added to *${profile.businessName}* on our Billing App.${roleDescription}%0A%0A📲 *Open App on your Phone:*%0A${staffLink}${pinText}%0A%0A(Open the link on your mobile phone to start billing)`;
+    const firmIdText = profile?.firmId ? `%0A🏢 *Firm ID:* \`${profile.firmId}\`` : '';
+    const text = `👋 Hello *${worker.name}*,%0A%0AYou have been added to *${profile.businessName || 'MS Shopping'}* on our Billing App.${roleDescription}${firmIdText}${pinText}%0A%0A📲 *If you already installed the App on your phone:*%0AOpen the VYApaar app ➔ Enter Firm ID \`${profile.firmId || ''}\` and your PIN!%0A%0A🌐 *Or open directly in Mobile Browser:*%0A${staffLink}`;
 
     const targetUrl = cleanPhone.length >= 10 ? `https://wa.me/${cleanPhone}?text=${text}` : `https://wa.me/?text=${text}`;
     window.open(targetUrl, '_blank');

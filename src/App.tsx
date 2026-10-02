@@ -36,7 +36,7 @@ import { NewCompanyModal } from './components/common/NewCompanyModal';
 import { ConflictReviewModal } from './components/common/ConflictReviewModal';
 import { performDailyAutoBackup } from './utils/backupRestore';
 import { syncFirmCloudVault, acceptWorkerCloudInvitation } from './utils/googleDriveSync';
-import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault } from './utils/cloudSync';
+import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault, getCloudServerUrl } from './utils/cloudSync';
 import { useBackNavigation, BackGestureFeedbackOverlay } from './utils/backNavigation';
 import { FloatingActionBar } from './components/common/FloatingActionBar';
 import { Lock, Tablet } from 'lucide-react';
@@ -179,7 +179,11 @@ export const App: React.FC = () => {
   const handleManualSync = async () => {
     if (!profile) return;
     setIsSyncingCloud(true);
-    setSyncToastMessage('🔄 Syncing with Cloud (shadab-computers.onrender.com)...');
+    let hostName = 'mssopping.onrender.com';
+    try {
+      hostName = new URL(getCloudServerUrl()).hostname;
+    } catch {}
+    setSyncToastMessage(`🔄 Syncing with Cloud (${hostName})...`);
     try {
       await syncFirmCloudVault(profile, handleSaveProfile);
       setSyncToastMessage('✓ Cloud Synced! Latest bills & parties up to date.');
@@ -251,34 +255,53 @@ export const App: React.FC = () => {
       const directFirmParam = urlParams.get('joinFirm') || urlParams.get('firmId');
 
       if (directFirmParam && (!profile?.firmId || profile.firmId !== directFirmParam.toUpperCase())) {
-        const pinParam = urlParams.get('pin') || '1234';
-        authenticateFirmOnCloud(directFirmParam.toUpperCase(), pinParam)
-          .then(async (res) => {
-            const vault = res.vault || (await downloadCloudVault(directFirmParam.toUpperCase()));
-            if (vault) {
-              await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
+        const firmKey = `firm_joined_${directFirmParam.toUpperCase()}`;
+        if (!sessionStorage.getItem(firmKey)) {
+          sessionStorage.setItem(firmKey, 'true');
+          try {
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState({}, document.title, window.location.pathname);
             }
-          })
-          .catch((err) => console.log('Direct firm param auth notice:', err));
+          } catch {}
+          const pinParam = urlParams.get('pin') || '1234';
+          authenticateFirmOnCloud(directFirmParam.toUpperCase(), pinParam)
+            .then(async (res) => {
+              const vault = res.vault || (await downloadCloudVault(directFirmParam.toUpperCase()));
+              if (vault) {
+                await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
+              }
+            })
+            .catch((err) => console.log('Direct firm param auth notice:', err));
+        }
       }
 
       if (cloudInvite) {
-        acceptWorkerCloudInvitation(cloudInvite, handleSaveProfile)
-          .then((res) => {
-            if (res.success) {
-              const newSession: UserSession = {
-                type: 'COWORKER',
-                name: res.workerName,
-                phone: '',
-                role: 'Salesman',
-                isRemote: true,
-              };
-              setActiveSession(newSession);
-              saveUserSession(newSession);
-              alert(`✓ Welcome to ${res.firmName}!\n\nAuthenticated with Firm ID: ${res.firmId} as ${res.workerName}. Local database is synced with cloud.`);
+        const inviteKey = `cloud_invite_done_${cloudInvite.slice(0, 20)}`;
+        if (!sessionStorage.getItem(inviteKey)) {
+          sessionStorage.setItem(inviteKey, 'true');
+          try {
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState({}, document.title, window.location.pathname);
             }
-          })
-          .catch((err) => console.error('Cloud invite error:', err));
+          } catch {}
+          acceptWorkerCloudInvitation(cloudInvite, handleSaveProfile)
+            .then((res) => {
+              if (res.success) {
+                const newSession: UserSession = {
+                  type: 'COWORKER',
+                  name: res.workerName,
+                  phone: '',
+                  role: (res as any).role || 'Salesman',
+                  isRemote: true,
+                };
+                setActiveSession(newSession);
+                saveUserSession(newSession);
+                setSyncToastMessage(`✓ Welcome to ${res.firmName}! Authenticated as ${res.workerName}.`);
+                setTimeout(() => setSyncToastMessage(null), 5000);
+              }
+            })
+            .catch((err) => console.error('Cloud invite error:', err));
+        }
       }
 
       const workerIdParam = urlParams.get('workerId') || urlParams.get('coworker');
