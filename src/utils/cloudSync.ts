@@ -144,29 +144,25 @@ export async function cloudFetch(url: string, options: CloudFetchOptions = {}): 
 
 export function getCloudServerUrl(): string {
   if (typeof window !== 'undefined') {
-    const origin = window.location.origin;
-    // 1. If running in a web browser on localhost, local Wi-Fi, or custom domain, use current origin
-    if (origin && !origin.startsWith('file:') && !origin.includes('capacitor://')) {
-      if (
-        origin.includes(':3000') || 
-        origin.includes('localhost') || 
-        origin.includes('10.218.3.180') || 
-        origin.includes('127.0.0.1') ||
-        origin.includes('onrender.com')
-      ) {
-        return origin;
-      }
-    }
+    // 1. If user explicitly configured a custom server URL in Settings (e.g. Local Wi-Fi), use it
     const custom = localStorage.getItem(STORAGE_CLOUD_API_KEY);
     if (custom && custom.trim().length > 0) {
       const trimmed = custom.trim().replace(/\/$/, '');
       if (trimmed.includes('trycloudflare.com') && trimmed !== DEFAULT_PUBLIC_CLOUD_URL) {
         localStorage.removeItem(STORAGE_CLOUD_API_KEY);
-        return DEFAULT_PUBLIC_CLOUD_URL;
+      } else {
+        return trimmed;
       }
-      return trimmed;
+    }
+
+    // 2. If running directly on Render web domain, use Render origin
+    const origin = window.location.origin;
+    if (origin && origin.includes('onrender.com')) {
+      return origin;
     }
   }
+
+  // 3. Official 24/7 Render Cloud Server
   return DEFAULT_PUBLIC_CLOUD_URL;
 }
 

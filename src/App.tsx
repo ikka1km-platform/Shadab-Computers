@@ -1075,10 +1075,10 @@ export const App: React.FC = () => {
           )}
         </main>
 
-        {/* Floating Vyapar-style Quick Action Switches (Take Payment, (+), Add Sale) with Auto-hide on Scroll */}
-        {!isCustomerKioskMode && !selectedParty && (activeTab === 'dashboard' || activeTab === 'parties' || activeTab === 'daybook') && (
+        {/* Floating Vyapar-style Quick Action Switches (Take Payment, (+), Add Sale) */}
+        {!isCustomerKioskMode && (activeTab === 'dashboard' || (!selectedParty && (activeTab === 'parties' || activeTab === 'daybook'))) && (
           <FloatingActionBar
-            isVisible={isQuickActionsVisible}
+            isVisible={true}
             onTakePayment={() => handleOpenAddTx('PAYMENT_IN')}
             onAddSale={() => handleOpenAddTx('SALE')}
             onOpenTxModal={(type) => handleOpenAddTx(type)}

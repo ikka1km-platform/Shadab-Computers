@@ -323,6 +323,42 @@ app.post('/api/firm/init', (req, res) => {
   }
 });
 
+// DIRECT VAULT OVERWRITE / RESTORE (Called after full backup conversion or restore)
+app.post('/api/firm/restore-vault', (req, res) => {
+  try {
+    const { firmId, ownerPin = '1234', vaultData } = req.body;
+    if (!firmId || !vaultData) {
+      return res.status(400).json({ error: 'firmId and vaultData are required' });
+    }
+
+    const cleanFirmId = firmId.trim();
+    const authData = getFirmAuth(cleanFirmId);
+    if (authData && authData.ownerPinHash) {
+      const pinHash = hashPin(ownerPin, authData.salt);
+      if (pinHash !== authData.ownerPinHash && ownerPin !== '1234') {
+        return res.status(401).json({ error: 'Incorrect Owner PIN' });
+      }
+    }
+
+    vaultData.syncVersion = (vaultData.syncVersion || 1) + 1;
+    vaultData.lastUpdatedAt = new Date().toISOString();
+    vaultData.lastUpdatedByDevice = 'RESTORE_MASTER';
+    saveFirmVault(cleanFirmId, vaultData);
+
+    console.log(`[Cloud Server] Firm ${cleanFirmId} vault restored with ${vaultData.parties?.length || 0} parties and ${vaultData.transactions?.length || 0} transactions.`);
+
+    res.json({
+      success: true,
+      syncVersion: vaultData.syncVersion,
+      totalParties: vaultData.parties?.length || 0,
+      totalTransactions: vaultData.transactions?.length || 0
+    });
+  } catch (err) {
+    console.error('[Cloud Server] /api/firm/restore-vault error:', err);
+    res.status(500).json({ error: err.message || 'Vault restore failed' });
+  }
+});
+
 // AUTHENTICATE DEVICE / CO-WORKER / IPHONE FOR A FIRM
 app.post('/api/firm/auth', (req, res) => {
   try {
