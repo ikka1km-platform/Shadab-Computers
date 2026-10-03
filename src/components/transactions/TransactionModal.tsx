@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Calendar, 
@@ -24,7 +24,8 @@ import {
   RotateCcw,
   ArrowRightCircle,
   ArrowLeftRight,
-  Zap
+  Zap,
+  Search
 } from 'lucide-react';
 import { 
   Party, 
@@ -137,6 +138,37 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [originalVoucherNumber, setOriginalVoucherNumber] = useState<string>('');
   const [returnReason, setReturnReason] = useState<string>('Damaged / Defective');
 
+  // Typeable Customer/Supplier Autocomplete (Vyapar standard matching Screenshots 1 & 2)
+  const [partySearchText, setPartySearchText] = useState<string>('');
+  const [isPartyDropdownOpen, setIsPartyDropdownOpen] = useState<boolean>(false);
+
+  const targetPartyType: PartyType =
+    type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE'
+      ? 'CUSTOMER'
+      : 'SUPPLIER';
+
+  const selectedParty = useMemo(() => {
+    return parties.find((p) => p.id === Number(partyId));
+  }, [parties, partyId]);
+
+  const filteredParties = useMemo(() => {
+    const list = parties
+      .filter((p) => p.partyType === targetPartyType)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const isExactSelected = selectedParty && partySearchText.trim().toLowerCase() === selectedParty.name.toLowerCase();
+    if (!partySearchText.trim() || isExactSelected) {
+      return list;
+    }
+    const q = partySearchText.toLowerCase().trim();
+    return list.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      (p.phone && p.phone.includes(q)) ||
+      (p.accountCode && p.accountCode.toLowerCase().includes(q))
+    );
+  }, [parties, targetPartyType, partySearchText, selectedParty]);
+
+
   // Quick Add Party Switch & State in Customer/Party column
   const [isQuickAddParty, setIsQuickAddParty] = useState<boolean>(false);
   const [quickPartyName, setQuickPartyName] = useState<string>('');
@@ -178,6 +210,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
       // Immediately select newly created party
       setPartyId(newId);
+      setPartySearchText(newPartyRecord.name);
+      setIsPartyDropdownOpen(false);
       setQuickPartyName('');
       setQuickPartyPhone('');
       setIsQuickAddParty(false);
@@ -194,6 +228,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     if (txToEdit) {
       setType(txToEdit.type);
       setPartyId(txToEdit.partyId);
+      const matchedP = parties.find((x) => x.id === txToEdit.partyId);
+      setPartySearchText(matchedP ? matchedP.name : (txToEdit.partyName || ''));
+      setIsPartyDropdownOpen(false);
       setDate(txToEdit.date);
       setVoucherNumber(txToEdit.voucherNumber);
       setPaymentMode(txToEdit.paymentMode);
@@ -244,6 +281,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     } else {
       setType(initialType);
       setPartyId(initialPartyId);
+      const matchedP = initialPartyId ? parties.find((x) => x.id === initialPartyId) : undefined;
+      setPartySearchText(matchedP ? matchedP.name : '');
+      setIsPartyDropdownOpen(false);
       setFirmId(firms[0]?.id);
       setBankAccountId(bankAccounts[0]?.id);
       setContraType('CASH_TO_BANK');
@@ -315,7 +355,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   if (!isOpen) return null;
 
   const isItemBased = type === 'SALE' || type === 'PURCHASE' || type === 'ESTIMATE' || type === 'CREDIT_NOTE' || type === 'DEBIT_NOTE';
-  const selectedParty = parties.find((p) => p.id === Number(partyId));
 
   // Determine actual received/paid cash based on settlement status
   const effectivePaidAmount = isItemBased
@@ -677,6 +716,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const processSubmit = async (shouldPrint = false) => {
     if (amount <= 0 && invoiceItems.length === 0) return;
 
+    if (type !== 'EXPENSE' && type !== 'CONTRA' && !partyId) {
+      alert(`Please select a ${type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'customer' : 'supplier'} before saving.`);
+      return;
+    }
+
     const finalPaidAmount = isItemBased
       ? (paymentStatus === 'UNPAID' ? 0 : paymentStatus === 'PAID' ? Number(amount) : Number(paidAmount))
       : Number(amount);
@@ -861,8 +905,8 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-1 sm:p-3 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 sm:backdrop-blur-xs flex sm:items-center justify-center p-0 sm:p-3 overflow-y-auto overflow-x-hidden">
+      <div className="bg-white rounded-none sm:rounded-2xl w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[96vh] shadow-2xl border-0 sm:border border-slate-200 overflow-hidden flex flex-col animate-in fade-in sm:zoom-in-95 duration-150">
         {/* Compact Header */}
         <div className="px-3.5 py-2.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -941,7 +985,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
         </div>
 
         {!txToEdit && (
-          <div className="bg-slate-100 px-2 py-1.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar text-xs font-bold shrink-0">
+          <div className="bg-slate-100 px-2 py-1.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar text-xs font-bold shrink-0 touch-pan-x">
             {[
               { id: 'PAYMENT_IN', label: '+ Receipt', color: 'bg-emerald-600' },
               { id: 'SALE', label: '+ Sale Bill', color: 'bg-blue-600' },
@@ -961,6 +1005,11 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                   onClick={() => {
                     const newType = tab.id as TransactionType;
                     setType(newType);
+                    const newTargetType: PartyType = (newType === 'PAYMENT_IN' || newType === 'SALE' || newType === 'CREDIT_NOTE' || newType === 'ESTIMATE') ? 'CUSTOMER' : 'SUPPLIER';
+                    if (selectedParty && selectedParty.partyType !== newTargetType) {
+                      setPartyId(undefined);
+                      setPartySearchText('');
+                    }
                     const prefix = tab.id === 'PAYMENT_IN' ? 'REC' :
                                    tab.id === 'PAYMENT_OUT' ? 'PAY' :
                                    tab.id === 'SALE' ? 'INV' :
@@ -992,7 +1041,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-2 sm:p-3 space-y-2 overflow-y-auto flex-1 flex flex-col justify-between">
+        <form onSubmit={handleSubmit} className="p-2 sm:p-3 space-y-2 overflow-y-auto overflow-x-hidden w-full max-w-full flex-1 flex flex-col justify-between">
           {/* Contra Mode Selection (for Internal Cash ⇄ Bank Transfers) */}
           {type === 'CONTRA' ? (
             <div className="bg-purple-50/80 p-2 sm:p-2.5 rounded-xl border border-purple-200 space-y-2">
@@ -1236,44 +1285,166 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          required
-                          value={partyId || ''}
-                          onChange={(e) => {
-                            if (e.target.value === '__NEW_PARTY__') {
+                      <div className="relative">
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative flex-1">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={partySearchText}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPartySearchText(val);
+                                setIsPartyDropdownOpen(true);
+                                if (selectedParty && val.trim().toLowerCase() !== selectedParty.name.toLowerCase()) {
+                                  setPartyId(undefined);
+                                }
+                              }}
+                              onFocus={() => setIsPartyDropdownOpen(true)}
+                              placeholder={`Type ${targetPartyType === 'CUSTOMER' ? 'Customer' : 'Supplier'} name to search...`}
+                              className={`w-full pl-8 pr-16 py-1.5 text-xs font-bold border rounded-lg outline-none bg-white transition-all shadow-2xs ${
+                                partyId
+                                  ? 'border-emerald-500 bg-emerald-50/20 text-slate-900 focus:ring-2 focus:ring-emerald-500'
+                                  : 'border-slate-300 text-slate-800 focus:ring-2 focus:ring-blue-500'
+                              }`}
+                            />
+                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                              {partySearchText && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPartySearchText('');
+                                    setPartyId(undefined);
+                                    setIsPartyDropdownOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                                  title="Clear"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setIsPartyDropdownOpen(!isPartyDropdownOpen)}
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                                title="Open party list"
+                              >
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isPartyDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsPartyDropdownOpen(false);
+                              setQuickPartyName(partySearchText.trim());
                               setIsQuickAddParty(true);
-                            } else {
-                              setPartyId(Number(e.target.value) || undefined);
-                            }
-                          }}
-                          className="flex-1 px-2.5 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">-- Select Party / Customer --</option>
-                          <option value="__NEW_PARTY__" className="font-bold text-blue-700 bg-blue-50">
-                            ➕ + Add New Party / Customer...
-                          </option>
-                          {parties
-                            .filter((p) =>
-                              type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE'
-                                ? p.partyType === 'CUSTOMER'
-                                : p.partyType === 'SUPPLIER'
-                            )
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.phone ? `(${p.phone})` : ''} - Bal: {formatCurrency(Math.abs(p.currentBalance))} {p.currentBalance >= 0 ? '(Recv)' : '(Pay)'}
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => setIsQuickAddParty(true)}
-                          className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 transition-all"
-                          title="Add new customer right here"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>+ Add Party</span>
-                        </button>
+                            }}
+                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 transition-all"
+                            title="Add new party directly"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">+ Add Party</span>
+                          </button>
+                        </div>
+
+                        {/* Floating Autocomplete Dropdown */}
+                        {isPartyDropdownOpen && (
+                          <>
+                            {/* Backdrop to close on tap outside */}
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setIsPartyDropdownOpen(false)}
+                            />
+
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-60 sm:max-h-72 animate-in fade-in zoom-in-95 duration-100">
+                              <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between shrink-0">
+                                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                  {partySearchText.trim()
+                                    ? `Matching (${filteredParties.length})`
+                                    : `Showing Saved Parties (${filteredParties.length})`}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsPartyDropdownOpen(false);
+                                    setQuickPartyName(partySearchText.trim());
+                                    setIsQuickAddParty(true);
+                                  }}
+                                  className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Add New Party</span>
+                                </button>
+                              </div>
+
+                              <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                                {filteredParties.length > 0 ? (
+                                  filteredParties.map((p) => {
+                                    const isSelected = p.id === partyId;
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setPartyId(p.id);
+                                          setPartySearchText(p.name);
+                                          setIsPartyDropdownOpen(false);
+                                        }}
+                                        className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                                          isSelected ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50 active:bg-slate-100'
+                                        }`}
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1.5">
+                                            <span>{p.name}</span>
+                                            {isSelected && (
+                                              <span className="text-[10px] bg-blue-100 text-blue-700 px-1 py-0.2 rounded font-extrabold shrink-0">Selected</span>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-slate-500 font-mono truncate">
+                                            {p.phone || p.accountCode || ''}
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                          <div className={`text-xs font-bold flex items-center justify-end gap-0.5 ${
+                                            p.currentBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                                          }`}>
+                                            <span>{p.currentBalance >= 0 ? '↓' : '↑'}</span>
+                                            <span>{formatCurrency(Math.abs(p.currentBalance))}</span>
+                                          </div>
+                                          <div className="text-[9px] text-slate-400 font-semibold">
+                                            {p.currentBalance >= 0 ? 'To Receive' : 'To Pay'}
+                                          </div>
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="p-4 text-center space-y-2">
+                                    <p className="text-xs text-slate-500 font-medium">
+                                      No matching parties found for <span className="font-bold text-slate-700">"{partySearchText}"</span>
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsPartyDropdownOpen(false);
+                                        setQuickPartyName(partySearchText.trim());
+                                        setIsQuickAddParty(true);
+                                      }}
+                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Create "{partySearchText.trim()}" as New Party</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
