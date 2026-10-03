@@ -176,7 +176,12 @@ export async function parseDebtorsPdf(fileData: ArrayBuffer): Promise<ParsePdfRe
       const lastToken = tokens[tokens.length - 1]?.replace(/,/g, '');
       const secondLastToken = tokens[tokens.length - 2]?.replace(/,/g, '');
 
-      const isNum = (s: string) => !isNaN(Number(s)) && s !== '' && /^\d+(\.\d+)?$/.test(s);
+      const isNum = (s: string) => {
+        if (!s || isNaN(Number(s)) || s === '') return false;
+        // 7-12 digit integer with no decimal point (e.g. 660694209 or phone numbers) is a party ID code, NOT a balance amount
+        if (/^\d{7,12}$/.test(s)) return false;
+        return /^\d+(\.\d+)?$/.test(s);
+      };
 
       if (isNum(lastToken)) {
         const val1 = parseFloat(lastToken);
