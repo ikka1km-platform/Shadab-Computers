@@ -128,21 +128,57 @@ export async function initializeDatabase() {
     }
   }
 
+  // Proactively purge any stale demo coworkers, firms, or parties from earlier development
+  try {
+    const demoProfiles = await db.businessProfile.where('businessName').equals('Apex Traders & Distributors').toArray();
+    for (const dp of demoProfiles) {
+      if (dp.id) {
+        await db.businessProfile.update(dp.id, {
+          businessName: 'MS Shopping',
+          ownerName: 'Owner',
+          phone: '7470661004',
+          address: 'Rajgarh',
+          firmId: 'FIRM_MUJUM8RS_6MVUTM',
+        });
+      }
+    }
+    await db.coWorkers.where('name').anyOf(['Sunil Verma (Owner)', 'Rahul Sharma', 'Pooja Mehra']).delete();
+    await db.coWorkers.where('email').anyOf(['sunil.verma@apextraders.in', 'rahul.sales@apextraders.in', 'pooja.billing@apextraders.in']).delete();
+    await db.firms.where('name').anyOf(['Apex Traders (Firm A)', 'Apex Enterprises (Firm B)']).delete();
+    await db.parties.where('name').anyOf(['Sharma General Store', 'Royal Supermart', 'Gupta Wholesale Suppliers']).delete();
+    await db.transactions.where('voucherNumber').anyOf(['INV-001', 'INV-002', 'PUR-001', 'REC-001', 'EXP-001']).delete();
+
+    // Check localStorage session - if it contains stale demo staff, clear it immediately!
+    if (typeof window !== 'undefined') {
+      const savedSession = localStorage.getItem('vyapar_active_session');
+      if (savedSession) {
+        try {
+          const s = JSON.parse(savedSession);
+          if (s && s.name && (s.name.includes('Sunil Verma') || s.name.includes('Rahul Sharma') || s.name.includes('Pooja Mehra') || s.name.includes('Apex Traders'))) {
+            localStorage.removeItem('vyapar_active_session');
+          }
+        } catch {}
+      }
+    }
+  } catch (cleanErr) {
+    console.warn('Demo cleanup notice:', cleanErr);
+  }
+
   if (localStorage.getItem('vyapar_initialized') === 'clean_user_company') {
     return;
   }
   const profileCount = await db.businessProfile.count();
   if (profileCount === 0) {
-    const initialFirmId = generateFirmId();
+    const initialFirmId = 'FIRM_MUJUM8RS_6MVUTM';
     await db.businessProfile.add({
-      businessName: 'Apex Traders & Distributors',
+      businessName: 'MS Shopping',
       tagline: 'Wholesale & Retail General Merchant',
-      ownerName: 'Sunil Verma',
-      phone: '+91 98765 43210',
-      email: 'contact@apextraders.in',
-      address: 'Shop #12, Commercial Market, Main Road, New Delhi',
-      gstin: '07AAAAA0000A1Z5',
-      upiId: 'sunil.verma@upi',
+      ownerName: 'Owner',
+      phone: '7470661004',
+      email: '',
+      address: 'Rajgarh',
+      gstin: '',
+      upiId: '',
       currencySymbol: '₹',
       firmId: initialFirmId,
       securityPin: '1234',
@@ -150,7 +186,7 @@ export async function initializeDatabase() {
       firmCloudAccount: {
         firmId: initialFirmId,
         cloudProvider: 'GOOGLE_DRIVE',
-        cloudAccountEmail: 'contact@apextraders.in',
+        cloudAccountEmail: 'firm_mujum8rs_6mvutm@vyapaar-cloud.internal',
         cloudConnectionStatus: 'DISCONNECTED',
         cloudSyncCursor: Date.now(),
         cloudSyncVersion: 1,
@@ -169,245 +205,37 @@ export async function initializeDatabase() {
       },
     });
 
-    // Seed default firms (Firm A & Firm B)
-    const f1 = await db.firms.add({
-      name: 'Apex Traders (Firm A)',
-      code: 'FIRM-A',
-      isDefault: true,
-      phone: '+91 98765 43210',
-      address: 'Shop #12, Main Market, New Delhi',
-      gstin: '07AAAAA0000A1Z5',
-      createdAt: new Date().toISOString(),
-    });
-
-    const f2 = await db.firms.add({
-      name: 'Apex Enterprises (Firm B)',
-      code: 'FIRM-B',
-      isDefault: false,
-      phone: '+91 98111 88990',
-      address: 'Sector 18, Commercial Hub, Noida',
-      gstin: '09BBBCC9988D1Z2',
-      createdAt: new Date().toISOString(),
-    });
-
-    // Seed default bank accounts
-    const b1 = await db.bankAccounts.add({
-      accountName: 'HDFC Current Account',
-      bankName: 'HDFC Bank',
-      accountNumber: '50200012345678',
-      ifscCode: 'HDFC0001234',
-      upiId: 'apextraders@hdfcbank',
-      openingBalance: 45000,
-      currentBalance: 45000,
-      firmId: f1,
-      firmName: 'Apex Traders (Firm A)',
-      createdAt: new Date().toISOString(),
-    });
-
-    const b2 = await db.bankAccounts.add({
-      accountName: 'SBI Business Account',
-      bankName: 'State Bank of India',
-      accountNumber: '30998877665',
-      ifscCode: 'SBIN0004567',
-      upiId: 'apexent@sbi',
-      openingBalance: 20000,
-      currentBalance: 20000,
-      firmId: f2,
-      firmName: 'Apex Enterprises (Firm B)',
-      createdAt: new Date().toISOString(),
-    });
-
-    const p1 = await db.parties.add({
-      name: 'Sharma General Store',
-      accountCode: 'CUST-101',
-      phone: '9811122233',
-      email: 'sharma.store@gmail.com',
-      address: 'Sector 14, Noida',
-      gstin: '09AAACS1234F1Z8',
-      partyType: 'CUSTOMER',
-      openingBalance: 12500,
-      currentBalance: 12500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    const p2 = await db.parties.add({
-      name: 'Royal Supermart',
-      accountCode: 'CUST-102',
-      phone: '9822233344',
-      address: 'Indirapuram, Ghaziabad',
-      partyType: 'CUSTOMER',
-      openingBalance: 4200,
-      currentBalance: 4200,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    const p3 = await db.parties.add({
-      name: 'Gupta Wholesale Suppliers',
-      accountCode: 'SUPP-201',
-      phone: '9833344455',
-      address: 'Chandni Chowk, Delhi',
-      gstin: '07AAACG9876Q1Z2',
-      partyType: 'SUPPLIER',
-      openingBalance: -18000,
-      currentBalance: -18000,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db.items.bulkAdd([
-      {
-        name: 'Basmati Rice Premium (5kg)',
-        code: 'ITEM-01',
-        category: 'Grocery',
-        brand: 'India Gate',
-        size: '5kg',
-        color: 'White',
-        salePrice: 450,
-        purchasePrice: 380,
-        unit: 'Bag',
-        stockQuantity: 45,
-        minStockAlert: 10,
+    // Seed default firm
+    const firmCount = await db.firms.count();
+    if (firmCount === 0) {
+      await db.firms.add({
+        name: 'MS Shopping',
+        code: 'MAIN',
+        isDefault: true,
+        phone: '7470661004',
+        address: 'Rajgarh',
+        gstin: '',
+        firmId: initialFirmId,
         createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Cotton Sports Polo T-Shirt',
-        code: 'ITEM-02',
-        category: 'Apparel',
-        brand: 'Nike',
-        size: 'L',
-        color: 'Navy Blue',
-        salePrice: 1299,
-        purchasePrice: 850,
-        unit: 'Pcs',
-        stockQuantity: 30,
-        minStockAlert: 5,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Air Speed Running Shoes',
-        code: 'ITEM-03',
-        category: 'Footwear',
-        brand: 'Nike',
-        size: '42',
-        color: 'Black',
-        salePrice: 3499,
-        purchasePrice: 2200,
-        unit: 'Pair',
-        stockQuantity: 18,
-        minStockAlert: 4,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Refined Cooking Oil (1L)',
-        code: 'ITEM-04',
-        category: 'Grocery',
-        brand: 'Fortune',
-        size: '1 Litre',
-        color: 'Golden',
-        salePrice: 140,
-        purchasePrice: 120,
-        unit: 'Pcs',
-        stockQuantity: 120,
-        minStockAlert: 20,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Whole Wheat Flour (10kg)',
-        code: 'ITEM-05',
-        category: 'Grocery',
-        brand: 'Aashirvaad',
-        size: '10kg',
-        color: 'Wheat',
-        salePrice: 380,
-        purchasePrice: 330,
-        unit: 'Bag',
-        stockQuantity: 8,
-        minStockAlert: 15,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+      });
+    }
 
-    const today = new Date().toISOString().split('T')[0];
-    await db.transactions.bulkAdd([
-      {
-        voucherNumber: 'PAY-IN-001',
-        type: 'PAYMENT_IN',
-        partyId: p1,
-        partyName: 'Sharma General Store',
-        date: today,
-        amount: 5000,
-        paidAmount: 5000,
-        balanceDue: 0,
-        paymentStatus: 'PAID',
-        paymentMode: 'CASH',
-        firmId: f1,
-        firmName: 'Apex Traders (Firm A)',
-        cashDenominations: { c500: 10, totalNotes: 10, totalAmount: 5000 },
-        description: 'Received cash towards partial invoice clearance',
+    // Seed default Cash in Hand account
+    const bankCount = await db.bankAccounts.count();
+    if (bankCount === 0) {
+      await db.bankAccounts.add({
+        accountName: 'Cash in Hand',
+        bankName: 'Cash Account',
+        accountNumber: 'CASH-01',
+        ifscCode: '',
+        upiId: '',
+        openingBalance: 0,
+        currentBalance: 0,
+        firmName: 'MS Shopping',
         createdAt: new Date().toISOString(),
-      },
-      {
-        voucherNumber: 'PAY-OUT-001',
-        type: 'PAYMENT_OUT',
-        partyId: p3,
-        partyName: 'Gupta Wholesale Suppliers',
-        date: today,
-        amount: 8000,
-        paidAmount: 8000,
-        balanceDue: 0,
-        paymentStatus: 'PAID',
-        paymentMode: 'BANK',
-        firmId: f1,
-        firmName: 'Apex Traders (Firm A)',
-        bankAccountId: b1,
-        bankAccountName: 'HDFC Current Account',
-        description: 'Bank transfer NEFT ref #998811',
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-
-    await updatePartyBalance(p1);
-    await updatePartyBalance(p2);
-    await updatePartyBalance(p3);
-    await updateBankAccountBalances();
-  }
-
-  const coWorkerCount = await db.coWorkers.count();
-  if (coWorkerCount === 0) {
-    await db.coWorkers.bulkAdd([
-      {
-        name: 'Sunil Verma (Owner)',
-        phone: '+91 98765 43210',
-        email: 'sunil.verma@apextraders.in',
-        role: 'Secondary Admin',
-        pin: '1234',
-        status: 'ACTIVE',
-        permissions: ['ALL_PERMISSIONS'],
-        createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Rahul Sharma',
-        phone: '+91 98111 22334',
-        email: 'rahul.sales@apextraders.in',
-        role: 'Salesman',
-        pin: '2233',
-        status: 'ACTIVE',
-        permissions: ['CREATE_SALES', 'VIEW_CATALOGUE', 'CUSTOMER_DUES'],
-        createdAt: new Date().toISOString(),
-      },
-      {
-        name: 'Pooja Mehra',
-        phone: '+91 98222 55667',
-        email: 'pooja.billing@apextraders.in',
-        role: 'Biller',
-        pin: '5566',
-        status: 'ACTIVE',
-        permissions: ['CREATE_BILLS', 'PRINT_THERMAL', 'VIEW_INVENTORY'],
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+      });
+    }
+    return;
   }
 }
 

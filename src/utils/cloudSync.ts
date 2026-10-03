@@ -5,7 +5,7 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { saveUserSession, setMobileLoggedIn } from './userSession';
 
 export const DEFAULT_PUBLIC_CLOUD_URL = 'https://mssopping.onrender.com';
-export const DEFAULT_LOCAL_WIFI_URL = 'http://192.168.29.143:3000';
+export const DEFAULT_LOCAL_WIFI_URL = 'http://10.218.3.180:3000';
 const STORAGE_CLOUD_API_KEY = 'vyapar_cloud_api_url';
 const STORAGE_CLOUD_TOKEN_PREFIX = 'vyapar_cloud_token_';
 

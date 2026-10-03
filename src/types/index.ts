@@ -1,5 +1,13 @@
 export type PartyType = 'CUSTOMER' | 'SUPPLIER';
 
+export type ReminderFrequency = 'DAILY' | 'FIXED_DAYS' | 'MANUAL';
+
+export interface ReminderRule {
+  frequency: ReminderFrequency;
+  daysOfWeek: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  minAmount?: number;
+}
+
 export interface Party {
   id?: number;
   name: string;
@@ -13,6 +21,8 @@ export interface Party {
   currentBalance: number;
   firmId?: number;
   firmName?: string;
+  reminderRule?: ReminderRule;
+  lastReminderSentAt?: string;
   createdAt: string;
   updatedAt: string;
 }

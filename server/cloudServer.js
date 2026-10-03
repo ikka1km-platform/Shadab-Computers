@@ -76,19 +76,55 @@ function saveFirmAuth(firmId, authData) {
   fs.writeFileSync(file, JSON.stringify(authData, null, 2), 'utf-8');
 }
 
+function cleanDemoArtifactsFromVault(vaultData) {
+  if (!vaultData) return vaultData;
+  // 1. Purge demo coworkers (Sunil Verma, Rahul Sharma, Pooja Mehra, apextraders)
+  if (Array.isArray(vaultData.coWorkers)) {
+    vaultData.coWorkers = vaultData.coWorkers.filter(w => {
+      if (!w) return false;
+      const n = (w.name || '').toLowerCase();
+      const e = (w.email || '').toLowerCase();
+      if (n.includes('sunil verma') || n.includes('rahul sharma') || n.includes('pooja mehra')) return false;
+      if (e.includes('apextraders') || e.includes('sunil.verma')) return false;
+      return true;
+    });
+  }
+  // 2. Purge demo firms
+  if (Array.isArray(vaultData.firms) && vaultData.firms.length > 1) {
+    vaultData.firms = vaultData.firms.filter(f => {
+      if (!f) return false;
+      const n = (f.name || '').toLowerCase();
+      if (n.includes('apex traders') || n.includes('apex enterprises')) return false;
+      return true;
+    });
+  }
+  // 3. Purge demo parties
+  if (Array.isArray(vaultData.parties) && vaultData.parties.length > 1) {
+    vaultData.parties = vaultData.parties.filter(p => {
+      if (!p) return false;
+      const n = (p.name || '').toLowerCase();
+      if (n.includes('sharma general store') || n.includes('royal supermart') || n.includes('gupta wholesale')) return false;
+      return true;
+    });
+  }
+  return vaultData;
+}
+
 function getFirmVault(firmId) {
   const file = path.join(getFirmDir(firmId), 'vault.json');
   if (fs.existsSync(file)) {
     try {
-      return JSON.parse(fs.readFileSync(file, 'utf-8'));
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      return cleanDemoArtifactsFromVault(parsed);
     } catch (_) {}
   }
   return null;
 }
 
 function saveFirmVault(firmId, vaultData) {
+  const cleaned = cleanDemoArtifactsFromVault(vaultData);
   const file = path.join(getFirmDir(firmId), 'vault.json');
-  fs.writeFileSync(file, JSON.stringify(vaultData, null, 2), 'utf-8');
+  fs.writeFileSync(file, JSON.stringify(cleaned, null, 2), 'utf-8');
 }
 
 function getFirmInvites(firmId) {
@@ -290,7 +326,7 @@ app.post('/api/firm/init', (req, res) => {
 // AUTHENTICATE DEVICE / CO-WORKER / IPHONE FOR A FIRM
 app.post('/api/firm/auth', (req, res) => {
   try {
-    const { firmId, pin, deviceId = 'device_remote', deviceName = 'Remote Device' } = req.body;
+    const { firmId, pin, deviceId = 'device_remote', deviceName = 'Remote Device', loginAs, workerId: reqWorkerId } = req.body;
 
     if (!firmId || !pin) {
       return res.status(400).json({ error: 'firmId and pin are required' });
@@ -309,16 +345,43 @@ app.post('/api/firm/auth', (req, res) => {
     let userName = 'User';
     let workerId = null;
 
-    // 1. Check Co-Worker PINs in Vault FIRST!
-    const matchingWorker = (vault.coWorkers || []).find(w => String(w.pin) === String(pin) && w.status !== 'INACTIVE');
-    if (matchingWorker) {
-      userRole = matchingWorker.role || 'Salesman';
-      userName = matchingWorker.name || 'Co-Worker';
-      workerId = matchingWorker.id;
-    } else if (authData.ownerPinHash === inputPinHash || (pin === '1234' && !authData.ownerPinHash)) {
-      // 2. Check Owner PIN
-      userRole = 'Owner';
-      userName = 'Owner Terminal';
+    // Purge any demo coworkers from vault before auth check
+    cleanDemoArtifactsFromVault(vault);
+
+    // 0. If a specific workerId was provided, prioritize matching that exact coworker
+    if (reqWorkerId) {
+      const targetWorker = (vault.coWorkers || []).find(w => w.id === Number(reqWorkerId) && String(w.pin) === String(pin) && w.status !== 'INACTIVE');
+      if (targetWorker) {
+        userRole = targetWorker.role || 'Salesman';
+        userName = targetWorker.name;
+        workerId = targetWorker.id;
+      }
+    }
+
+    // 1. If explicit Owner login requested
+    if (!userRole && (loginAs === 'Owner' || loginAs === 'ADMIN')) {
+      if (authData.ownerPinHash === inputPinHash || (pin === '1234' && !authData.ownerPinHash) || (vault.securityPin && String(vault.securityPin) === String(pin))) {
+        userRole = 'Owner';
+        userName = 'Owner Terminal';
+      }
+    }
+
+    // 2. Check Co-Worker PINs in Vault (Staff joining or authenticating)
+    if (!userRole) {
+      const matchingWorker = (vault.coWorkers || []).find(w => String(w.pin) === String(pin) && w.status !== 'INACTIVE');
+      if (matchingWorker) {
+        userRole = matchingWorker.role || 'Salesman';
+        userName = matchingWorker.name || 'Co-Worker';
+        workerId = matchingWorker.id;
+      }
+    }
+
+    // 3. Check Owner PIN fallback
+    if (!userRole) {
+      if (authData.ownerPinHash === inputPinHash || (pin === '1234' && !authData.ownerPinHash) || (vault.securityPin && String(vault.securityPin) === String(pin))) {
+        userRole = 'Owner';
+        userName = 'Owner Terminal';
+      }
     }
 
     if (!userRole) {
@@ -361,7 +424,7 @@ app.post('/api/firm/auth', (req, res) => {
     res.json({
       success: true,
       firmId: cleanFirmId,
-      firmName: authData.firmName || vault.appName,
+      firmName: authData.firmName || vault.firmName || vault.firms?.find(f => f.isDefault)?.name || vault.firms?.[0]?.name || vault.appName || 'MS Shopping',
       role: userRole,
       workerName: userName,
       workerId,
@@ -468,11 +531,16 @@ app.post('/api/firm/sync', requireFirmAuth, (req, res) => {
       }
     }
 
-    // 1c. Absorb local coWorkers if sent by client
+    // 1c. Absorb local coWorkers if sent by client (excluding any demo data)
     if (Array.isArray(localCoWorkers) && localCoWorkers.length > 0) {
       vault.coWorkers = vault.coWorkers || [];
-      for (const w of localCoWorkers) {
-        if (!w || !w.id) continue;
+      const nonDemoWorkers = localCoWorkers.filter(w => {
+        if (!w || !w.id) return false;
+        const n = (w.name || '').toLowerCase();
+        const e = (w.email || '').toLowerCase();
+        return !n.includes('sunil verma') && !n.includes('rahul sharma') && !n.includes('pooja mehra') && !e.includes('apextraders');
+      });
+      for (const w of nonDemoWorkers) {
         const existingIdx = vault.coWorkers.findIndex(ew => ew.id === w.id);
         if (existingIdx === -1) {
           vault.coWorkers.push(w);

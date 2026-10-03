@@ -39,6 +39,8 @@ import { syncFirmCloudVault, acceptWorkerCloudInvitation } from './utils/googleD
 import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault, getCloudServerUrl } from './utils/cloudSync';
 import { useBackNavigation, BackGestureFeedbackOverlay } from './utils/backNavigation';
 import { FloatingActionBar } from './components/common/FloatingActionBar';
+import { DailyDebtorsPdfModal } from './components/importer/DailyDebtorsPdfModal';
+import { SplitScreenRecoveryQueueModal } from './components/reminders/SplitScreenRecoveryQueueModal';
 import { Lock, Tablet } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -96,6 +98,8 @@ export const App: React.FC = () => {
   // Settings & New Company Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
+  const [isDailyDebtorsPdfOpen, setIsDailyDebtorsPdfOpen] = useState(false);
+  const [isRecoveryQueueOpen, setIsRecoveryQueueOpen] = useState(false);
 
   // Cloud Sync & Conflict State
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
@@ -127,6 +131,8 @@ export const App: React.FC = () => {
     isPrinterManagerOpen && { id: 'printerManager', close: () => setIsPrinterManagerOpen(false) },
     isNewCompanyModalOpen && { id: 'newCompany', close: () => setIsNewCompanyModalOpen(false) },
     isConflictModalOpen && { id: 'conflict', close: () => setIsConflictModalOpen(false) },
+    isDailyDebtorsPdfOpen && { id: 'dailyPdf', close: () => setIsDailyDebtorsPdfOpen(false) },
+    isRecoveryQueueOpen && { id: 'recoveryQueue', close: () => setIsRecoveryQueueOpen(false) },
     isSettingsOpen && { id: 'settings', close: () => setIsSettingsOpen(false) },
     isBankingModalOpen && { id: 'banking', close: () => setIsBankingModalOpen(false) },
     isItemModalOpen && { id: 'item', close: () => setIsItemModalOpen(false) },
@@ -981,6 +987,8 @@ export const App: React.FC = () => {
               }}
               onNavigateToDaybook={() => navigateToTab('daybook')}
               onOpenBankingModal={() => setIsBankingModalOpen(true)}
+              onOpenDailyPdfSync={() => setIsDailyDebtorsPdfOpen(true)}
+              onOpenRecoveryQueue={() => setIsRecoveryQueueOpen(true)}
             />
           ) : activeTab === 'parties' ? (
             <PartyList
@@ -994,6 +1002,8 @@ export const App: React.FC = () => {
               onOpenAddModal={handleOpenAddParty}
               onEditParty={handleOpenEditParty}
               onDeleteParty={handleDeleteParty}
+              onOpenDailyPdfSync={() => setIsDailyDebtorsPdfOpen(true)}
+              onOpenRecoveryQueue={() => setIsRecoveryQueueOpen(true)}
             />
           ) : activeTab === 'cash_tally' ? (
             <DenominationReport
@@ -1198,6 +1208,35 @@ export const App: React.FC = () => {
       <ThermalPrinterManagerModal
         isOpen={isPrinterManagerOpen}
         onClose={() => setIsPrinterManagerOpen(false)}
+      />
+
+      {/* Daily Sundry Debtors PDF Reconciliation Modal */}
+      <DailyDebtorsPdfModal
+        isOpen={isDailyDebtorsPdfOpen}
+        onClose={() => setIsDailyDebtorsPdfOpen(false)}
+        parties={parties}
+        firms={firms}
+        bankAccounts={bankAccounts}
+        onSuccess={(stats) => {
+          setSyncToastMessage(`✓ Synced ${stats.salesCreated} sales (+₹${stats.totalSalesAmount.toLocaleString()}) from Daily PDF`);
+          setTimeout(() => setSyncToastMessage(null), 4000);
+        }}
+        onOpenManualPayment={(partyName, suggestedAmt) => {
+          setIsDailyDebtorsPdfOpen(false);
+          const matched = parties.find((p) => p.name.toLowerCase().includes(partyName.toLowerCase()));
+          handleOpenAddTx('PAYMENT_IN', matched?.id);
+        }}
+      />
+
+      {/* Jio WhatsApp Recovery Queue (Split-Screen Optimized) */}
+      <SplitScreenRecoveryQueueModal
+        isOpen={isRecoveryQueueOpen}
+        onClose={() => setIsRecoveryQueueOpen(false)}
+        parties={parties}
+        firms={firms}
+        bankAccounts={bankAccounts}
+        profile={profile}
+        onUpdateParty={(updated) => handleSaveParty(updated)}
       />
 
       {/* Customer Showroom Exit PIN Modal */}

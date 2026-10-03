@@ -11,7 +11,9 @@ import {
   Trash2,
   Edit3,
   MoreVertical,
-  Building2
+  Building2,
+  FileText,
+  Zap
 } from 'lucide-react';
 import { Party, PartyType, BusinessProfile, BankAccount, UserRole, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
@@ -29,6 +31,8 @@ interface PartyListProps {
   onOpenAddModal: (type: PartyType) => void;
   onEditParty?: (party: Party) => void;
   onDeleteParty?: (id: number) => Promise<void> | void;
+  onOpenDailyPdfSync?: () => void;
+  onOpenRecoveryQueue?: () => void;
 }
 
 export const PartyList: React.FC<PartyListProps> = ({
@@ -42,6 +46,8 @@ export const PartyList: React.FC<PartyListProps> = ({
   onOpenAddModal,
   onEditParty,
   onDeleteParty,
+  onOpenDailyPdfSync,
+  onOpenRecoveryQueue,
 }) => {
   const isSupplierFinancesAllowed = canViewSupplierFinances(currentRole);
   const [filterType, setFilterType] = useState<string>(
@@ -128,7 +134,25 @@ export const PartyList: React.FC<PartyListProps> = ({
           <p className="text-[11px] sm:text-xs text-slate-500">Sorted by highest dues first (Vyapar ledger standard)</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {onOpenDailyPdfSync && (
+            <button
+              type="button"
+              onClick={onOpenDailyPdfSync}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs md:text-sm font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-400" /> Daily PDF
+            </button>
+          )}
+          {onOpenRecoveryQueue && (
+            <button
+              type="button"
+              onClick={onOpenRecoveryQueue}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-200" /> Jio Queue
+            </button>
+          )}
           <button
             onClick={() => onOpenAddModal('CUSTOMER')}
             className="flex-1 md:flex-none px-3.5 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
@@ -138,7 +162,7 @@ export const PartyList: React.FC<PartyListProps> = ({
           {isSupplierFinancesAllowed && (
             <button
               onClick={() => onOpenAddModal('SUPPLIER')}
-              className="flex-1 md:flex-none px-3.5 py-1.5 sm:px-4 sm:py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs md:text-sm font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              className="flex-1 md:flex-none px-3.5 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs md:text-sm font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <UserPlus className="w-4 h-4" /> + Supplier
             </button>

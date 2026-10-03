@@ -28,6 +28,8 @@ interface DashboardProps {
   onNavigateToParties?: (filter: 'RECEIVABLE' | 'PAYABLE' | 'CUSTOMER' | 'SUPPLIER') => void;
   onNavigateToDaybook?: (mode?: string) => void;
   onOpenBankingModal?: () => void;
+  onOpenDailyPdfSync?: () => void;
+  onOpenRecoveryQueue?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -46,6 +48,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigateToParties,
   onNavigateToDaybook,
   onOpenBankingModal,
+  onOpenDailyPdfSync,
+  onOpenRecoveryQueue,
 }) => {
   const isSupplierFinancesAllowed = canViewSupplierFinances(currentRole);
   const isCashTallyAllowed = canViewCashTally(currentRole);
@@ -146,6 +150,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[11px] font-extrabold border border-blue-200">
               {currentRole} View
             </span>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Recovery Actions Bar */}
+      <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-3 sm:p-4 rounded-2xl text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <h3 className="text-sm font-black tracking-tight">Recovery & Debtors Center</h3>
+          </div>
+          <p className="text-[11px] text-slate-300 mt-0.5">
+            Upload daily Tally PDF balances & send 1-tap split-screen Jio reminders
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {onOpenDailyPdfSync && (
+            <button
+              type="button"
+              onClick={onOpenDailyPdfSync}
+              className="flex-1 sm:flex-none px-3 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              📄 Upload Debtors PDF
+            </button>
+          )}
+
+          {onOpenRecoveryQueue && (
+            <button
+              type="button"
+              onClick={onOpenRecoveryQueue}
+              className="flex-1 sm:flex-none px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              ⚡ Jio WhatsApp Queue
+            </button>
           )}
         </div>
       </div>
