@@ -72,8 +72,8 @@ export function getSuggestedFirm(name?: string | null): 'KRISHI_SEWA' | 'SHADAB_
 // Extract customer ID code if present in name (e.g. "660694209")
 export function extractCustomerCode(name?: string | null): { cleanedName: string; code?: string } {
   if (!name || typeof name !== 'string') return { cleanedName: '' };
-  // Check for 6 to 12 digit code in the string
-  const match = name.match(/\b(\d{6,12})\b/);
+  // Check for 5 to 12 digit customer ID code in the string (e.g. 660455, 660694209, 662069870)
+  const match = name.match(/\b(\d{5,12})\b/);
   if (match) {
     return {
       cleanedName: name.trim(),
@@ -176,32 +176,31 @@ export async function parseDebtorsPdf(fileData: ArrayBuffer): Promise<ParsePdfRe
       const lastToken = tokens[tokens.length - 1]?.replace(/,/g, '');
       const secondLastToken = tokens[tokens.length - 2]?.replace(/,/g, '');
 
-      const isNum = (s: string) => {
-        if (!s || isNaN(Number(s)) || s === '') return false;
-        // 7-12 digit integer with no decimal point (e.g. 660694209 or phone numbers) is a party ID code, NOT a balance amount
-        if (/^\d{7,12}$/.test(s)) return false;
-        return /^\d+(\.\d+)?$/.test(s);
+      // A customer ID is a 5-12 digit integer (e.g. 660455, 662069870, 661994459, 660556255, 660694209, 661506489)
+      // Customer IDs NEVER have decimal points, whereas currency amounts ALWAYS have .XX or are typical balances
+      const isCustomerIdCode = (s: string) => {
+        if (!s) return false;
+        const clean = s.replace(/,/g, '');
+        return /^\d{5,12}$/.test(clean);
       };
 
-      if (isNum(lastToken)) {
+      const isAmount = (s: string) => {
+        if (!s) return false;
+        const clean = s.replace(/,/g, '');
+        if (isNaN(Number(clean)) || clean === '') return false;
+        if (isCustomerIdCode(clean)) return false;
+        return /^\d+(\.\d+)?$/.test(clean);
+      };
+
+      if (isAmount(lastToken)) {
         const val1 = parseFloat(lastToken);
-        if (isNum(secondLastToken)) {
-          const val2 = parseFloat(secondLastToken);
-          // Two numbers at end: first is Debit, second is Credit
-          debitVal = val2;
+        // If line has "FULGAVDI" or "SHIN SHAKTI", it belongs to Credit column; otherwise Debit
+        if (/FULGAVDI/i.test(fullLineText) || /SHIN SHAKTI/i.test(fullLineText)) {
           creditVal = val1;
-          nameParts = tokens.slice(0, tokens.length - 2);
         } else {
-          // One number at end: check if credit or debit
-          // In this PDF, almost everything is Debit except Shin Shakti (which was in credit column)
-          // If the token corresponds to x position > 500 it might be credit, or if line has "FULGAVDI"
-          if (/FULGAVDI/i.test(fullLineText) || /SHIN SHAKTI/i.test(fullLineText)) {
-            creditVal = val1;
-          } else {
-            debitVal = val1;
-          }
-          nameParts = tokens.slice(0, tokens.length - 1);
+          debitVal = val1;
         }
+        nameParts = tokens.slice(0, tokens.length - 1);
 
         const partyName = nameParts.join(' ').trim();
         if (partyName && partyName.length > 2) {
