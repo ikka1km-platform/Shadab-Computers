@@ -144,16 +144,22 @@ export async function cloudFetch(url: string, options: CloudFetchOptions = {}): 
 
 export function getCloudServerUrl(): string {
   if (typeof window !== 'undefined') {
-    // If the browser is directly running on a public HTTPS server (e.g. iPhone Safari on Cloudflare tunnel),
-    // use that same origin as the API backend
     const origin = window.location.origin;
-    if (origin && origin.startsWith('https://') && !origin.includes('localhost')) {
-      return origin;
+    // 1. If running in a web browser on localhost, local Wi-Fi, or custom domain, use current origin
+    if (origin && !origin.startsWith('file:') && !origin.includes('capacitor://')) {
+      if (
+        origin.includes(':3000') || 
+        origin.includes('localhost') || 
+        origin.includes('10.218.3.180') || 
+        origin.includes('127.0.0.1') ||
+        origin.includes('onrender.com')
+      ) {
+        return origin;
+      }
     }
     const custom = localStorage.getItem(STORAGE_CLOUD_API_KEY);
     if (custom && custom.trim().length > 0) {
       const trimmed = custom.trim().replace(/\/$/, '');
-      // If the stored URL is an outdated/dead trycloudflare.com URL that doesn't match current DEFAULT, purge it
       if (trimmed.includes('trycloudflare.com') && trimmed !== DEFAULT_PUBLIC_CLOUD_URL) {
         localStorage.removeItem(STORAGE_CLOUD_API_KEY);
         return DEFAULT_PUBLIC_CLOUD_URL;
