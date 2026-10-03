@@ -169,10 +169,10 @@ export async function initializeDatabase() {
   }
   const profileCount = await db.businessProfile.count();
   if (profileCount === 0) {
-    const initialFirmId = 'FIRM_MUJUM8RS_6MVUTM';
+    const initialFirmId = 'FIRM_MUI8HFY6_47UPAJ';
     await db.businessProfile.add({
-      businessName: 'MS Shopping',
-      tagline: 'Wholesale & Retail General Merchant',
+      businessName: 'Shadab Computers',
+      tagline: 'Retail & Wholesale',
       ownerName: 'Owner',
       phone: '7470661004',
       email: '',
@@ -209,7 +209,7 @@ export async function initializeDatabase() {
     const firmCount = await db.firms.count();
     if (firmCount === 0) {
       await db.firms.add({
-        name: 'MS Shopping',
+        name: 'Shadab Computers',
         code: 'MAIN',
         isDefault: true,
         phone: '7470661004',
@@ -231,7 +231,7 @@ export async function initializeDatabase() {
         upiId: '',
         openingBalance: 0,
         currentBalance: 0,
-        firmName: 'MS Shopping',
+        firmName: 'Shadab Computers',
         createdAt: new Date().toISOString(),
       });
     }

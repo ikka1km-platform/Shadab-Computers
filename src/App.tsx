@@ -185,7 +185,7 @@ export const App: React.FC = () => {
   const handleManualSync = async () => {
     if (!profile) return;
     setIsSyncingCloud(true);
-    let hostName = 'mssopping.onrender.com';
+    let hostName = 'shadab-computers.onrender.com';
     try {
       hostName = new URL(getCloudServerUrl()).hostname;
     } catch {}
