@@ -1211,33 +1211,37 @@ export const App: React.FC = () => {
       />
 
       {/* Daily Sundry Debtors PDF Reconciliation Modal */}
-      <DailyDebtorsPdfModal
-        isOpen={isDailyDebtorsPdfOpen}
-        onClose={() => setIsDailyDebtorsPdfOpen(false)}
-        parties={parties}
-        firms={firms}
-        bankAccounts={bankAccounts}
-        onSuccess={(stats) => {
-          setSyncToastMessage(`✓ Synced ${stats.salesCreated} sales (+₹${stats.totalSalesAmount.toLocaleString()}) from Daily PDF`);
-          setTimeout(() => setSyncToastMessage(null), 4000);
-        }}
-        onOpenManualPayment={(partyName, suggestedAmt) => {
-          setIsDailyDebtorsPdfOpen(false);
-          const matched = parties.find((p) => p.name.toLowerCase().includes(partyName.toLowerCase()));
-          handleOpenAddTx('PAYMENT_IN', matched?.id);
-        }}
-      />
+      {isDailyDebtorsPdfOpen && (
+        <DailyDebtorsPdfModal
+          isOpen={isDailyDebtorsPdfOpen}
+          onClose={() => setIsDailyDebtorsPdfOpen(false)}
+          parties={parties}
+          firms={firms}
+          bankAccounts={bankAccounts}
+          onSuccess={(stats) => {
+            setSyncToastMessage(`✓ Synced ${stats.salesCreated} sales (+₹${stats.totalSalesAmount.toLocaleString()}) from Daily PDF`);
+            setTimeout(() => setSyncToastMessage(null), 4000);
+          }}
+          onOpenManualPayment={(partyName, suggestedAmt) => {
+            setIsDailyDebtorsPdfOpen(false);
+            const matched = parties.find((p) => p?.name && p.name.toLowerCase().includes(partyName.toLowerCase()));
+            handleOpenAddTx('PAYMENT_IN', matched?.id);
+          }}
+        />
+      )}
 
       {/* Jio WhatsApp Recovery Queue (Split-Screen Optimized) */}
-      <SplitScreenRecoveryQueueModal
-        isOpen={isRecoveryQueueOpen}
-        onClose={() => setIsRecoveryQueueOpen(false)}
-        parties={parties}
-        firms={firms}
-        bankAccounts={bankAccounts}
-        profile={profile}
-        onUpdateParty={(updated) => handleSaveParty(updated)}
-      />
+      {isRecoveryQueueOpen && (
+        <SplitScreenRecoveryQueueModal
+          isOpen={isRecoveryQueueOpen}
+          onClose={() => setIsRecoveryQueueOpen(false)}
+          parties={parties}
+          firms={firms}
+          bankAccounts={bankAccounts}
+          profile={profile}
+          onUpdateParty={(updated) => handleSaveParty(updated)}
+        />
+      )}
 
       {/* Customer Showroom Exit PIN Modal */}
       <ShowroomExitModal

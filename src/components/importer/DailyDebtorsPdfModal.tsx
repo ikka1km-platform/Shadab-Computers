@@ -69,9 +69,42 @@ export const DailyDebtorsPdfModal: React.FC<DailyDebtorsPdfModalProps> = ({
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Identify firm IDs
-  const krishiSewaFirm = firms.find((f) => /krishi\s*sewa/i.test(f.name)) || firms[0];
-  const shadabFirm = firms.find((f) => /shadab/i.test(f.name)) || firms[1] || firms[0];
+  // Identify firm IDs safely
+  const krishiSewaFirm = firms.find((f) => f?.name && /krishi\s*sewa/i.test(f.name)) || firms[0];
+  const shadabFirm = firms.find((f) => f?.name && /shadab/i.test(f.name)) || firms[1] || firms[0];
+
+  // Queues (Hooks must be called unconditionally on every render)
+  const salesQueue = useMemo(
+    () => reconciledItems.filter((i) => i.category === 'SALE_INCREASE'),
+    [reconciledItems]
+  );
+  const newPartiesQueue = useMemo(
+    () => reconciledItems.filter((i) => i.category === 'NEW_PARTY'),
+    [reconciledItems]
+  );
+  const paymentAlertsQueue = useMemo(
+    () => reconciledItems.filter((i) => i.category === 'PAYMENT_ALERT'),
+    [reconciledItems]
+  );
+  const excludedQueue = useMemo(
+    () => reconciledItems.filter((i) => i.category === 'EXCLUDED'),
+    [reconciledItems]
+  );
+  const unchangedQueue = useMemo(
+    () => reconciledItems.filter((i) => i.category === 'UNCHANGED'),
+    [reconciledItems]
+  );
+
+  // Selected totals
+  const selectedItemsToPost = useMemo(
+    () => reconciledItems.filter((i) => i.isSelected && (i.category === 'SALE_INCREASE' || i.category === 'NEW_PARTY')),
+    [reconciledItems]
+  );
+
+  const totalSelectedSalesAmount = useMemo(
+    () => selectedItemsToPost.reduce((sum, i) => sum + (i.category === 'NEW_PARTY' ? i.newBalance : i.difference), 0),
+    [selectedItemsToPost]
+  );
 
   if (!isOpen) return null;
 
@@ -189,38 +222,6 @@ export const DailyDebtorsPdfModal: React.FC<DailyDebtorsPdfModalProps> = ({
     );
   };
 
-  // Queues
-  const salesQueue = useMemo(
-    () => reconciledItems.filter((i) => i.category === 'SALE_INCREASE'),
-    [reconciledItems]
-  );
-  const newPartiesQueue = useMemo(
-    () => reconciledItems.filter((i) => i.category === 'NEW_PARTY'),
-    [reconciledItems]
-  );
-  const paymentAlertsQueue = useMemo(
-    () => reconciledItems.filter((i) => i.category === 'PAYMENT_ALERT'),
-    [reconciledItems]
-  );
-  const excludedQueue = useMemo(
-    () => reconciledItems.filter((i) => i.category === 'EXCLUDED'),
-    [reconciledItems]
-  );
-  const unchangedQueue = useMemo(
-    () => reconciledItems.filter((i) => i.category === 'UNCHANGED'),
-    [reconciledItems]
-  );
-
-  // Selected totals
-  const selectedItemsToPost = useMemo(
-    () => reconciledItems.filter((i) => i.isSelected && (i.category === 'SALE_INCREASE' || i.category === 'NEW_PARTY')),
-    [reconciledItems]
-  );
-
-  const totalSelectedSalesAmount = useMemo(
-    () => selectedItemsToPost.reduce((sum, i) => sum + (i.category === 'NEW_PARTY' ? i.newBalance : i.difference), 0),
-    [selectedItemsToPost]
-  );
 
   // Execute database save
   const handleConfirmPostEntries = async () => {

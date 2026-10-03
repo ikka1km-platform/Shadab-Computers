@@ -52,27 +52,26 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
   const [ruleMinAmount, setRuleMinAmount] = useState<number>(1000);
   const [editPhone, setEditPhone] = useState<string>('');
 
-  if (!isOpen) return null;
-
   const todayDayOfWeek = new Date().getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
-  // Identify firm banks
-  const krishiSewaFirm = firms.find((f) => /krishi\s*sewa/i.test(f.name)) || firms[0];
-  const shadabFirm = firms.find((f) => /shadab/i.test(f.name)) || firms[1] || firms[0];
+  // Identify firm banks safely
+  const krishiSewaFirm = firms.find((f) => f?.name && /krishi\s*sewa/i.test(f.name)) || firms[0];
+  const shadabFirm = firms.find((f) => f?.name && /shadab/i.test(f.name)) || firms[1] || firms[0];
 
   const getBankForFirm = (firm?: Firm): BankAccount | undefined => {
     if (!firm) return bankAccounts[0];
     return (
-      bankAccounts.find((b) => (firm.id && b.firmId === firm.id) || b.firmName === firm.name) ||
+      bankAccounts.find((b) => (firm.id && b.firmId === firm.id) || (b.firmName && firm.name && b.firmName === firm.name)) ||
       bankAccounts[0]
     );
   };
 
   // Filter out the other agent's accounts (Nalchha, JPM, Sajid, Shin Shakti)
   const myParties = useMemo(() => {
+    if (!parties || !Array.isArray(parties)) return [];
     return parties.filter((p) => {
       // Must be customer with positive balance
-      if (p.partyType !== 'CUSTOMER' || p.currentBalance <= 0) return false;
+      if (p.partyType !== 'CUSTOMER' || (p.currentBalance || 0) <= 0) return false;
       // Auto-ignore Nalchha, JPM, Sajid, Shin Shakti
       const { isExcluded } = isOtherAgentAccount(p.name);
       return !isExcluded;
@@ -90,7 +89,7 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
 
       // Check min amount condition
       const minAmt = rule.minAmount !== undefined ? rule.minAmount : 500;
-      if (p.currentBalance < minAmt) return false;
+      if ((p.currentBalance || 0) < minAmt) return false;
 
       // Check day rule
       if (rule.frequency === 'DAILY') return true;
@@ -109,18 +108,20 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
     } else if (activeTab === 'ALL_PENDING') {
       list = myParties;
     } else if (activeTab === 'AMZERA') {
-      list = myParties.filter((p) => /AMZERA|AMZREA/i.test(p.name));
+      list = myParties.filter((p) => p.name && /AMZERA|AMZREA/i.test(p.name));
     } else if (activeTab === 'RAJGARH') {
-      list = myParties.filter((p) => !/AMZERA|AMZREA/i.test(p.name));
+      list = myParties.filter((p) => p.name && !/AMZERA|AMZREA/i.test(p.name));
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.phone?.includes(q));
+      list = list.filter((p) => (p.name && p.name.toLowerCase().includes(q)) || p.phone?.includes(q));
     }
 
     return list;
   }, [activeTab, dueTodayParties, myParties, searchQuery]);
+
+  if (!isOpen) return null;
 
   // Generate the Jio WhatsApp message with flexible UPI pay link (NO hardcoded amount)
   const generateWhatsAppMessage = (party: Party) => {

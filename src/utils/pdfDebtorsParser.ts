@@ -31,7 +31,8 @@ export interface ParsePdfResult {
 }
 
 // Check if customer belongs to the other recovery agent (Auto-Ignore)
-export function isOtherAgentAccount(name: string): { isExcluded: boolean; reason?: string } {
+export function isOtherAgentAccount(name?: string | null): { isExcluded: boolean; reason?: string } {
+  if (!name || typeof name !== 'string') return { isExcluded: false };
   const upper = name.trim().toUpperCase();
 
   // 1. Nalchha route
@@ -58,7 +59,8 @@ export function isOtherAgentAccount(name: string): { isExcluded: boolean; reason
 }
 
 // Determine if shop defaults to Krishi Sewa Kendra or Shadab Computers
-export function getSuggestedFirm(name: string): 'KRISHI_SEWA' | 'SHADAB_COMPUTERS' {
+export function getSuggestedFirm(name?: string | null): 'KRISHI_SEWA' | 'SHADAB_COMPUTERS' {
+  if (!name || typeof name !== 'string') return 'SHADAB_COMPUTERS';
   const upper = name.trim().toUpperCase();
   // Amzera shops belong to Krishi Sewa Kendra
   if (/^AMZERA\b/i.test(upper) || /^AMZREA\b/i.test(upper) || /\bAMZERA\b/i.test(upper)) {
@@ -68,7 +70,8 @@ export function getSuggestedFirm(name: string): 'KRISHI_SEWA' | 'SHADAB_COMPUTER
 }
 
 // Extract customer ID code if present in name (e.g. "660694209")
-export function extractCustomerCode(name: string): { cleanedName: string; code?: string } {
+export function extractCustomerCode(name?: string | null): { cleanedName: string; code?: string } {
+  if (!name || typeof name !== 'string') return { cleanedName: '' };
   // Check for 6 to 12 digit code in the string
   const match = name.match(/\b(\d{6,12})\b/);
   if (match) {
