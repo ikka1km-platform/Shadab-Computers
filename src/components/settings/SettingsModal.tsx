@@ -1809,7 +1809,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".json"
+                    accept=".json,application/json,text/plain,*/*"
                     onChange={handleRestoreFile}
                     className="text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
                   />
