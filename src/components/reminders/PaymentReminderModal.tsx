@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { Party, BusinessProfile, BankAccount, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
+import { Capacitor } from '@capacitor/core';
+import { NativeShare } from '../../utils/imageGenerator';
 
 interface PaymentReminderModalProps {
   isOpen: boolean;
@@ -167,6 +169,18 @@ ${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}`
   };
 
   const handleNativeShare = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await NativeShare.shareText?.({
+          title: `Payment Reminder - ${party.name}`,
+          text: fullMessage,
+          target: 'all',
+        });
+        return;
+      } catch (nativeErr) {
+        console.warn('Native share error, falling back:', nativeErr);
+      }
+    }
     if (navigator.share) {
       try {
         await navigator.share({

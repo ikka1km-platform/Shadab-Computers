@@ -2,12 +2,13 @@ import { BusinessProfile, DenominationBreakdown, Transaction } from '../types';
 import { formatCurrency, formatDate, formatDateTime, numberToWordsINR } from './formatters';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-interface NativeSharePluginInterface {
+export interface NativeSharePluginInterface {
   shareImage(options: { base64: string; filename: string; title?: string; text?: string; target?: 'whatsapp' | 'all' }): Promise<{ success: boolean; sharedDirectWhatsApp?: boolean }>;
   saveImage(options: { base64: string; filename: string }): Promise<{ success: boolean; filename: string; uri?: string; location?: string }>;
+  shareText?(options: { text: string; title?: string; target?: 'whatsapp' | 'all' }): Promise<{ success: boolean }>;
 }
 
-const NativeShare = registerPlugin<NativeSharePluginInterface>('NativeShare');
+export const NativeShare = registerPlugin<NativeSharePluginInterface>('NativeShare');
 
 interface GenerateImageOptions {
   selectedDate: string;
@@ -550,9 +551,13 @@ export async function shareDenominationJPEG(
       }
     }
 
-    // 3. Fallback: Browser Download
+    // 3. Fallback: Browser Download (for Desktop browser)
+    if (target === 'whatsapp' && typeof window !== 'undefined') {
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+      window.open(waUrl, '_blank');
+    }
     downloadBlob(dataUrl, filename);
-    return { success: true, shared: false, downloaded: true, message: `Downloaded: ${filename}` };
+    return { success: true, shared: target === 'whatsapp', downloaded: true, message: `Downloaded: ${filename}` };
   } catch (error) {
     console.error('Error sharing denomination JPEG:', error);
     alert('Failed to generate JPEG image. Please try again.');

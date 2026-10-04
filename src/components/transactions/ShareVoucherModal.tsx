@@ -14,6 +14,8 @@ import {
 import { Transaction, Party, BusinessProfile } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { generateReceiptVoucherPDF } from '../../utils/pdfGenerator';
+import { Capacitor } from '@capacitor/core';
+import { NativeShare } from '../../utils/imageGenerator';
 
 interface ShareVoucherModalProps {
   isOpen: boolean;
@@ -98,6 +100,18 @@ _${profile.businessName}${profile.phone ? ` • Ph: ${profile.phone}` : ''}_`;
   };
 
   const handleNativeShare = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await NativeShare.shareText?.({
+          title: `${voucherTitle} - ${transaction.voucherNumber}`,
+          text: messageBody,
+          target: 'all',
+        });
+        return;
+      } catch (nativeErr) {
+        console.warn('Native share error, falling back:', nativeErr);
+      }
+    }
     if (navigator.share) {
       try {
         await navigator.share({
