@@ -41,6 +41,7 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
   const [isSharing, setIsSharing] = useState<boolean>(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [autoBreakdownCoins, setAutoBreakdownCoins] = useState<boolean>(false);
+  const [hideZeroDenoms, setHideZeroDenoms] = useState<boolean>(true);
 
   useEffect(() => {
     if (initialFirmId !== undefined) {
@@ -245,6 +246,12 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
     { label: '₹5 Notes', val: 5, count: effectiveDenoms.c5 || 0, subtotal: (effectiveDenoms.c5 || 0) * 5, color: 'bg-slate-50 border-slate-200 text-slate-900' },
     { label: 'Coins (₹)', val: 1, count: '-', subtotal: effectiveDenoms.coins || 0, color: 'bg-yellow-50 border-yellow-200 text-yellow-900', isCoin: true },
   ];
+
+  const displayDenomRows = useMemo(() => {
+    if (!hideZeroDenoms) return denomRows;
+    const nonZero = denomRows.filter((r) => (typeof r.count === 'number' && r.count > 0) || r.subtotal > 0);
+    return nonZero.length > 0 ? nonZero : denomRows;
+  }, [denomRows, hideZeroDenoms]);
 
   const firmDisplayName = activeFirm ? activeFirm.name : 'All Firms (Consolidated)';
 
@@ -637,6 +644,20 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
               <span>Save JPG</span>
             </button>
 
+            {/* Hide / Show 0 Notes Toggle */}
+            <button
+              onClick={() => setHideZeroDenoms(!hideZeroDenoms)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                hideZeroDenoms
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Show only notes that have count > 0"
+            >
+              <Coins className={`w-3.5 h-3.5 ${hideZeroDenoms ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span>{hideZeroDenoms ? 'Hide 0 Notes: ON' : 'Show All Notes'}</span>
+            </button>
+
             {/* Auto-Break Notes Toggle */}
             <button
               onClick={() => setAutoBreakdownCoins(!autoBreakdownCoins)}
@@ -669,7 +690,7 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {denomRows.map((row) => {
+              {displayDenomRows.map((row) => {
                 const totalAmt = aggregatedDenoms.totalAmount || 1;
                 const percentage = totalAmt > 0 ? ((row.subtotal / totalAmt) * 100).toFixed(1) : '0.0';
                 return (

@@ -37,10 +37,29 @@ export async function generateDenominationJPEG({
   const paddingX = 40;
   const cardWidth = width - paddingX * 2; // 800px
 
-  // Calculate dynamic canvas height
-  const maxReceiptsToShow = Math.min(cashTransactions.length, 12);
-  const receiptsHeight = cashTransactions.length > 0 ? 50 + maxReceiptsToShow * 34 + 20 : 0;
-  const height = 980 + receiptsHeight;
+  // 1. Prepare filtered non-zero denomination rows (omit any note with 0 count)
+  const allDenomRows = [
+    { label: '₹500 Notes', badge: '₹500', count: totalDenoms.c500 || 0, subtotal: (totalDenoms.c500 || 0) * 500, badgeBg: '#f5f5f4', badgeBorder: '#d6d3d1', badgeText: '#1c1917' },
+    { label: '₹200 Notes', badge: '₹200', count: totalDenoms.c200 || 0, subtotal: (totalDenoms.c200 || 0) * 200, badgeBg: '#fef3c7', badgeBorder: '#fde68a', badgeText: '#92400e' },
+    { label: '₹100 Notes', badge: '₹100', count: totalDenoms.c100 || 0, subtotal: (totalDenoms.c100 || 0) * 100, badgeBg: '#e0e7ff', badgeBorder: '#c7d2fe', badgeText: '#3730a3' },
+    { label: '₹50 Notes',  badge: '₹50',  count: totalDenoms.c50 || 0,  subtotal: (totalDenoms.c50 || 0) * 50,  badgeBg: '#cffafe', badgeBorder: '#a5f3fc', badgeText: '#155e75' },
+    { label: '₹20 Notes',  badge: '₹20',  count: totalDenoms.c20 || 0,  subtotal: (totalDenoms.c20 || 0) * 20,  badgeBg: '#ffedd5', badgeBorder: '#fed7aa', badgeText: '#9a3412' },
+    { label: '₹10 Notes',  badge: '₹10',  count: totalDenoms.c10 || 0,  subtotal: (totalDenoms.c10 || 0) * 10,  badgeBg: '#dcfce7', badgeBorder: '#bbf7d0', badgeText: '#166534' },
+    { label: '₹5 Notes',   badge: '₹5',   count: totalDenoms.c5 || 0,   subtotal: (totalDenoms.c5 || 0) * 5,   badgeBg: '#f1f5f9', badgeBorder: '#cbd5e1', badgeText: '#334155' },
+    { label: 'Coins (₹)',  badge: 'COIN', count: '-',                   subtotal: totalDenoms.coins || 0,      badgeBg: '#fef9c3', badgeBorder: '#fef08a', badgeText: '#854d0e', isCoin: true },
+  ];
+
+  // Only share denomination rows that have a positive count or subtotal
+  const activeDenomRows = allDenomRows.filter((r) => 
+    (typeof r.count === 'number' && r.count > 0) || (typeof r.subtotal === 'number' && r.subtotal > 0)
+  );
+
+  const denomRows = activeDenomRows.length > 0 ? activeDenomRows : [
+    { label: 'No Physical Notes Counted', badge: '₹0', count: 0, subtotal: 0, badgeBg: '#f1f5f9', badgeBorder: '#cbd5e1', badgeText: '#64748b' }
+  ];
+
+  // Calculate dynamic canvas height strictly for summary + non-zero rows + signatures (no receipt log in JPG)
+  const height = 630 + denomRows.length * 36;
 
   // Use 2x DPR for ultra-crisp text rendering (WhatsApp & printing ready)
   const scale = 2;
@@ -236,17 +255,6 @@ export async function generateDenominationJPEG({
 
   curY += thH;
 
-  const denomRows = [
-    { label: '₹500 Notes', badge: '₹500', count: totalDenoms.c500 || 0, subtotal: (totalDenoms.c500 || 0) * 500, badgeBg: '#f5f5f4', badgeBorder: '#d6d3d1', badgeText: '#1c1917' },
-    { label: '₹200 Notes', badge: '₹200', count: totalDenoms.c200 || 0, subtotal: (totalDenoms.c200 || 0) * 200, badgeBg: '#fef3c7', badgeBorder: '#fde68a', badgeText: '#92400e' },
-    { label: '₹100 Notes', badge: '₹100', count: totalDenoms.c100 || 0, subtotal: (totalDenoms.c100 || 0) * 100, badgeBg: '#e0e7ff', badgeBorder: '#c7d2fe', badgeText: '#3730a3' },
-    { label: '₹50 Notes',  badge: '₹50',  count: totalDenoms.c50 || 0,  subtotal: (totalDenoms.c50 || 0) * 50,  badgeBg: '#cffafe', badgeBorder: '#a5f3fc', badgeText: '#155e75' },
-    { label: '₹20 Notes',  badge: '₹20',  count: totalDenoms.c20 || 0,  subtotal: (totalDenoms.c20 || 0) * 20,  badgeBg: '#ffedd5', badgeBorder: '#fed7aa', badgeText: '#9a3412' },
-    { label: '₹10 Notes',  badge: '₹10',  count: totalDenoms.c10 || 0,  subtotal: (totalDenoms.c10 || 0) * 10,  badgeBg: '#dcfce7', badgeBorder: '#bbf7d0', badgeText: '#166534' },
-    { label: '₹5 Notes',   badge: '₹5',   count: totalDenoms.c5 || 0,   subtotal: (totalDenoms.c5 || 0) * 5,   badgeBg: '#f1f5f9', badgeBorder: '#cbd5e1', badgeText: '#334155' },
-    { label: 'Coins (₹)',  badge: 'COIN', count: '-',                   subtotal: totalDenoms.coins || 0,      badgeBg: '#fef9c3', badgeBorder: '#fef08a', badgeText: '#854d0e', isCoin: true },
-  ];
-
   const totalAmt = totalDenoms.totalAmount || 1;
 
   denomRows.forEach((row, idx) => {
@@ -328,109 +336,9 @@ export async function generateDenominationJPEG({
   ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText('100.0%', colXShare, curY + 27);
 
-  curY += totalRowH + 25;
+  curY += totalRowH + 35;
 
-  // 8. Customer Cash Receipts Demonstration Log (if present)
-  if (cashTransactions.length > 0) {
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      `RECEIPT-WISE NOTE DEMONSTRATION LOG (${cashTransactions.length} Total Receipts)`,
-      tableX,
-      curY
-    );
-
-    curY += 12;
-
-    // Header for mini table
-    const rthH = 28;
-    ctx.fillStyle = '#f1f5f9';
-    roundRect(tableX, curY, tableW, rthH, 6, true, false);
-
-    ctx.fillStyle = '#475569';
-    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('VOUCHER #', tableX + 15, curY + 18);
-    ctx.fillText('CUSTOMER / PARTY', tableX + 130, curY + 18);
-    ctx.fillText('FIRM', tableX + 310, curY + 18);
-    ctx.fillText('CASH RECVD', tableX + 440, curY + 18);
-    ctx.fillText('NOTES DEMONSTRATION', tableX + 560, curY + 18);
-
-    curY += rthH;
-
-    const displayedTxs = cashTransactions.slice(0, maxReceiptsToShow);
-
-    displayedTxs.forEach((tx) => {
-      const rowH = 34;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(tableX, curY, tableW, rowH);
-
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(tableX, curY + rowH);
-      ctx.lineTo(tableX + tableW, curY + rowH);
-      ctx.stroke();
-
-      const cd = tx.cashDenominations;
-      const cashAmt = tx.paymentMode === 'SPLIT' && tx.splitPayment
-        ? tx.splitPayment.cashAmount
-        : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-
-      const parts: string[] = [];
-      if (cd?.c500) parts.push(`₹500x${cd.c500}`);
-      if (cd?.c200) parts.push(`₹200x${cd.c200}`);
-      if (cd?.c100) parts.push(`₹100x${cd.c100}`);
-      if (cd?.c50) parts.push(`₹50x${cd.c50}`);
-      if (cd?.c20) parts.push(`₹20x${cd.c20}`);
-      if (cd?.c10) parts.push(`₹10x${cd.c10}`);
-      if (cd?.c5) parts.push(`₹5x${cd.c5}`);
-      if (cd?.coins) parts.push(`Coins ₹${cd.coins}`);
-      const notesStr = parts.length > 0 ? parts.join(', ') : 'Direct Cash';
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 11px "Courier New", Courier, monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(tx.voucherNumber, tableX + 15, curY + 21);
-
-      ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      const pName = (tx.partyName || 'Customer').slice(0, 18);
-      ctx.fillText(pName, tableX + 130, curY + 21);
-
-      // Firm badge
-      ctx.fillStyle = '#4f46e5';
-      ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(tx.firmName ? tx.firmName.slice(0, 14) : 'Main', tableX + 310, curY + 21);
-
-      ctx.fillStyle = '#047857';
-      ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(formatCurrency(cashAmt), tableX + 440, curY + 21);
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(notesStr.slice(0, 36), tableX + 560, curY + 21);
-
-      curY += rowH;
-    });
-
-    if (cashTransactions.length > maxReceiptsToShow) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'italic 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        `+ ${cashTransactions.length - maxReceiptsToShow} more receipts recorded on this date`,
-        tableX + tableW / 2,
-        curY + 20
-      );
-      curY += 25;
-    }
-
-    curY += 15;
-  }
-
-  // 9. Signatures Block
-  curY += 25;
+  // 8. Signatures Block
   const sigLineW = 180;
 
   // Cashier signature
@@ -504,11 +412,11 @@ export async function shareDenominationJPEG(
 
     const dateLabel = options.selectedDate === 'ALL' ? 'All Dates' : formatDate(options.selectedDate);
     const shareTitle = `${displayFirm} - Cash Note Re-Tally (${dateLabel})`;
-    const shareText = `📊 Daily Cash Denomination & Note Demonstration Sheet for *${displayFirm}* (${dateLabel}).\n\n` +
+    const shareText = `📊 Daily Cash Note Re-Tally Sheet for *${displayFirm}* (${dateLabel}).\n\n` +
       `💵 Total Physical Cash: ${formatCurrency(options.totalDenoms.totalAmount || 0)}\n` +
       `🔢 Total Notes: ${options.totalDenoms.totalNotes || 0} Pieces\n` +
-      `🧾 Receipts Count: ${options.cashTransactions.length} Receipts\n\n` +
-      `Shared from Vyapar Plus App.`;
+      (options.totalDenoms.coins ? `🪙 Coins / Change: ${formatCurrency(options.totalDenoms.coins)}\n` : '') +
+      `\nShared from Vyapar Plus App.`;
 
     const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 
