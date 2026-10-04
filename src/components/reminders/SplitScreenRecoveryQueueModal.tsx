@@ -54,16 +54,75 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
 
   const todayDayOfWeek = new Date().getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
+  // Cash account detector to prevent Cash in Hand from appearing in bank transfer instructions
+  const isCashAccount = (b?: BankAccount): boolean => {
+    if (!b) return false;
+    const num = (b.accountNumber || '').toUpperCase();
+    const name = (b.bankName || '').toLowerCase();
+    const accName = (b.accountName || '').toLowerCase();
+    return num.includes('CASH') || name.includes('cash') || accName.includes('cash');
+  };
+
   // Identify firm banks safely
   const krishiSewaFirm = firms.find((f) => f?.name && /krishi\s*sewa/i.test(f.name)) || firms[0];
   const shadabFirm = firms.find((f) => f?.name && /shadab/i.test(f.name)) || firms[1] || firms[0];
 
-  const getBankForFirm = (firm?: Firm): BankAccount | undefined => {
-    if (!firm) return bankAccounts[0];
-    return (
-      bankAccounts.find((b) => (firm.id && b.firmId === firm.id) || (b.firmName && firm.name && b.firmName === firm.name)) ||
-      bankAccounts[0]
-    );
+  const getBankForFirm = (firm?: Firm, isAmzera?: boolean): BankAccount | undefined => {
+    const isAmz = isAmzera ?? (firm?.name ? /AMZERA|AMZREA|KRISHI/i.test(firm.name) : false);
+
+    // Only consider real bank accounts (filter out Cash in Hand / CASH-01)
+    const realBanks = bankAccounts.filter((b) => !isCashAccount(b));
+
+    let matched: BankAccount | undefined;
+    if (isAmz) {
+      // Prioritize Krishi Sewa Kendra ICICI bank account (406205001843)
+      matched =
+        realBanks.find((b) => b.accountNumber === '406205001843') ||
+        realBanks.find((b) => /krishi/i.test(b.accountName || '') || /krishi/i.test(b.firmName || '')) ||
+        (krishiSewaFirm?.id ? realBanks.find((b) => b.firmId === krishiSewaFirm.id) : undefined);
+    } else {
+      // Prioritize Shadab Computers ICICI bank account (406205001812)
+      matched =
+        realBanks.find((b) => b.accountNumber === '406205001812') ||
+        realBanks.find((b) => /shadab/i.test(b.accountName || '') || /shadab/i.test(b.firmName || '')) ||
+        (shadabFirm?.id ? realBanks.find((b) => b.firmId === shadabFirm.id) : undefined);
+    }
+
+    if (matched) return matched;
+
+    // Fallback: any real bank with upiId or first real bank
+    const anyWithUpi = realBanks.find((b) => Boolean(b.upiId && b.upiId !== 'krishisewa@sbi'));
+    if (anyWithUpi) return anyWithUpi;
+    if (realBanks.length > 0) return realBanks[0];
+
+    // Synthetic fallback matching the exact ICICI details if not yet in state
+    if (isAmz) {
+      return {
+        id: 8,
+        accountName: 'Krishi sewa kendra',
+        bankName: 'Icici',
+        accountNumber: '406205001843',
+        ifscCode: 'ICIC0004062',
+        upiId: 'Krishisewa86@icici',
+        openingBalance: 0,
+        currentBalance: 0,
+        firmName: 'Krishi sewa kendra',
+        createdAt: new Date().toISOString(),
+      };
+    } else {
+      return {
+        id: 9,
+        accountName: 'Shadab Computers',
+        bankName: 'Icicic',
+        accountNumber: '406205001812',
+        ifscCode: 'ICIC0004062',
+        upiId: 'eazypay.447KINJ6OP7QYA5@ICICI',
+        openingBalance: 0,
+        currentBalance: 0,
+        firmName: 'Shadab Computers',
+        createdAt: new Date().toISOString(),
+      };
+    }
   };
 
   // Filter out the other agent's accounts (Nalchha, JPM, Sajid, Shin Shakti)
@@ -123,27 +182,44 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
 
   if (!isOpen) return null;
 
-  // Generate the Jio WhatsApp message with flexible UPI pay link (NO hardcoded amount)
+  // Generate the WhatsApp reminder message with flexible UPI pay link (NO hardcoded amount)
   const generateWhatsAppMessage = (party: Party) => {
-    const isAmzera = /AMZERA|AMZREA/i.test(party.name);
+    const isAmzera = Boolean(
+      (party.name && /AMZERA|AMZREA/i.test(party.name)) ||
+      (party.firmName && /AMZERA|AMZREA|KRISHI/i.test(party.firmName)) ||
+      (krishiSewaFirm?.id && party.firmId === krishiSewaFirm.id)
+    );
     const assignedFirm = isAmzera ? krishiSewaFirm : shadabFirm;
-    const firmName = assignedFirm?.name || 'Jio';
-    const firmBank = getBankForFirm(assignedFirm);
+    const firmName = assignedFirm?.name || (isAmzera ? 'Krishi sewa kendra' : 'Shadab Computers');
+    const firmBank = getBankForFirm(assignedFirm, isAmzera);
 
-    const activeUpiId = assignedFirm?.upiId || firmBank?.upiId || profile?.upiId || 'krishisewa@sbi';
+    const defaultUpiId = isAmzera ? 'Krishisewa86@icici' : 'eazypay.447KINJ6OP7QYA5@ICICI';
+
+    let activeUpiId = '';
+    if (firmBank?.upiId && firmBank.upiId !== 'krishisewa@sbi') {
+      activeUpiId = firmBank.upiId;
+    } else if (assignedFirm?.upiId && assignedFirm.upiId !== 'krishisewa@sbi') {
+      activeUpiId = assignedFirm.upiId;
+    } else {
+      activeUpiId = defaultUpiId;
+    }
+
     const dueAmount = Math.abs(party.currentBalance);
 
     // Clickable UPI link with OPEN AMOUNT (omitting &am= so payer can pay partial or advance freely)
     const upiPayLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(firmName)}&cu=INR`;
 
-    const bankDetailsText = firmBank
+    const isRealBank = firmBank && !isCashAccount(firmBank);
+    const bankDetailsText = isRealBank
       ? `\n🏦 *Bank Transfer Details:*\n* Bank: ${firmBank.bankName}\n* A/C Name: ${firmBank.accountName}\n* A/C No: ${firmBank.accountNumber}${firmBank.ifscCode ? `\n* IFSC: ${firmBank.ifscCode}` : ''}`
       : '';
+
+    const serviceName = isAmzera ? 'Krishi Sewa Kendra' : 'Jio';
 
     const text = 
 `Namaste *${party.name}*,
 
-Aapka *Jio* me kul baaki balance *${formatCurrency(dueAmount)}* hai.
+Aapka *${serviceName}* me kul baaki balance *${formatCurrency(dueAmount)}* hai.
 Kripya aaj payment transfer karwaye:
 
 📲 *UPI ID:* \`${activeUpiId}\`

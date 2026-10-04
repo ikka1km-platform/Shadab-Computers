@@ -1,44 +1,7 @@
 {
   "appName": "Vyapar Business App",
-  "firmId": "FIRM_MUI8HFY6_47UPAJ",
-  "cloudAccountEmail": "firm_mui8hfy6_47upaj@vyapaar-cloud.internal",
-  "syncVersion": 10,
-  "lastUpdatedAt": "2026-10-03T06:16:55.154Z",
-  "lastUpdatedByDevice": "DEV_DESK_MUM91X7B_L2EA",
-  "activeDevices": [
-    {
-      "deviceId": "DEV_MOB_MUI8CJ7O_ICN1",
-      "deviceName": "Owner Primary Terminal",
-      "role": "Owner",
-      "lastSyncAt": "2026-09-27T12:26:00.585Z",
-      "isActive": true,
-      "workerName": "Owner Primary Terminal"
-    },
-    {
-      "deviceId": "DEV_DESK_MUJROH9S_786O",
-      "deviceName": "Web Terminal",
-      "role": "Owner",
-      "workerName": "Owner Terminal",
-      "lastSyncAt": "2026-09-27T12:03:59.012Z",
-      "isActive": true
-    },
-    {
-      "deviceId": "DEV_DESK_MUJRZASH_7VRH",
-      "deviceName": "Web Terminal",
-      "role": "Owner",
-      "workerName": "Owner Terminal",
-      "lastSyncAt": "2026-09-27T12:29:55.571Z",
-      "isActive": true
-    },
-    {
-      "deviceId": "TEST_DEV",
-      "deviceName": "Test Runner",
-      "role": "Owner",
-      "workerName": "Owner Terminal",
-      "lastSyncAt": "2026-09-27T12:25:00.447Z",
-      "isActive": true
-    }
-  ],
+  "version": 3,
+  "backupDate": "2026-10-03T07:41:28.202Z",
   "parties": [
     {
       "id": 1,
@@ -66,7 +29,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 04:58:17",
-      "updatedAt": "2026-07-25 04:58:17"
+      "updatedAt": "2026-10-03T07:07:39.769Z"
     },
     {
       "id": 2,
@@ -94,7 +57,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 04:58:17",
-      "updatedAt": "2026-07-25 04:58:17"
+      "updatedAt": "2026-10-03T07:07:39.802Z"
     },
     {
       "id": 3,
@@ -122,7 +85,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 04:58:17",
-      "updatedAt": "2026-07-25 04:58:17"
+      "updatedAt": "2026-10-03T07:07:39.850Z"
     },
     {
       "id": 4,
@@ -150,7 +113,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 04:58:17",
-      "updatedAt": "2026-07-25 04:58:17"
+      "updatedAt": "2026-10-03T07:07:39.883Z"
     },
     {
       "id": 5,
@@ -178,7 +141,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 04:58:17",
-      "updatedAt": "2026-07-25 04:58:17"
+      "updatedAt": "2026-10-03T07:07:39.917Z"
     },
     {
       "id": 6,
@@ -187,6 +150,34 @@
       "phone": "9993235103",
       "email": "",
       "address": "",
+      "gstin": "",
+      "partyType": "CUSTOMER",
+      "openingBalance": 0,
+      "currentBalance": 3000,
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "reminderRule": {
+        "frequency": "DAILY",
+        "daysOfWeek": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "minAmount": 500
+      },
+      "createdAt": "2026-07-25 04:58:59",
+      "updatedAt": "2026-10-03T07:09:59.963Z"
+    },
+    {
+      "id": 9,
+      "name": "Amzera ANGEL MOBAIL",
+      "accountCode": "ACC-0009",
+      "phone": "8889884200",
+      "email": "jay123jaiswal@gmail.com",
+      "address": "Amzera",
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
@@ -205,36 +196,8 @@
         ],
         "minAmount": 500
       },
-      "createdAt": "2026-07-25 04:58:59",
-      "updatedAt": "2026-10-02 10:56:03"
-    },
-    {
-      "id": 9,
-      "name": "Amzera ANGEL MOBAIL",
-      "accountCode": "ACC-0009",
-      "phone": "8889884200",
-      "email": "jay123jaiswal@gmail.com",
-      "address": "Amzera",
-      "gstin": "",
-      "partyType": "CUSTOMER",
-      "openingBalance": 0,
-      "currentBalance": 0,
-      "firmId": 8,
-      "firmName": "Krishi sewa kendra",
-      "reminderRule": {
-        "frequency": "DAILY",
-        "daysOfWeek": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6
-        ],
-        "minAmount": 500
-      },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 20:25:54"
+      "updatedAt": "2026-10-03T07:10:00.238Z"
     },
     {
       "id": 10,
@@ -262,7 +225,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-19 12:16:34"
+      "updatedAt": "2026-10-03T07:07:40.051Z"
     },
     {
       "id": 11,
@@ -290,7 +253,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-07-25 05:56:23"
+      "updatedAt": "2026-10-03T07:07:40.068Z"
     },
     {
       "id": 12,
@@ -318,7 +281,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-20 16:56:30"
+      "updatedAt": "2026-10-03T07:07:40.086Z"
     },
     {
       "id": 13,
@@ -346,7 +309,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:39:38"
+      "updatedAt": "2026-10-03T07:17:25.511Z"
     },
     {
       "id": 14,
@@ -374,7 +337,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 14:45:59"
+      "updatedAt": "2026-10-03T07:07:40.191Z"
     },
     {
       "id": 15,
@@ -386,7 +349,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 6000,
+      "currentBalance": 8000,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -402,7 +365,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:58:27"
+      "updatedAt": "2026-10-03T07:10:00.707Z"
     },
     {
       "id": 16,
@@ -414,7 +377,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 1500,
+      "currentBalance": 3000,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -430,7 +393,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 13:24:16"
+      "updatedAt": "2026-10-03T07:10:00.944Z"
     },
     {
       "id": 17,
@@ -442,7 +405,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 31900,
+      "currentBalance": 37900,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -458,7 +421,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:58:44"
+      "updatedAt": "2026-10-03T07:10:01.198Z"
     },
     {
       "id": 18,
@@ -486,7 +449,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:58:50"
+      "updatedAt": "2026-10-03T07:07:40.335Z"
     },
     {
       "id": 19,
@@ -498,7 +461,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 4140,
+      "currentBalance": 6140,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -514,7 +477,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 19:51:19"
+      "updatedAt": "2026-10-03T07:10:01.446Z"
     },
     {
       "id": 20,
@@ -542,7 +505,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 19:12:50"
+      "updatedAt": "2026-10-03T07:07:40.382Z"
     },
     {
       "id": 21,
@@ -570,7 +533,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 17:49:33"
+      "updatedAt": "2026-10-03T07:07:40.400Z"
     },
     {
       "id": 22,
@@ -598,7 +561,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-06 14:04:44"
+      "updatedAt": "2026-10-03T07:07:40.418Z"
     },
     {
       "id": 23,
@@ -626,7 +589,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:59:08"
+      "updatedAt": "2026-10-03T07:14:13.160Z"
     },
     {
       "id": 24,
@@ -654,7 +617,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-29 14:44:44"
+      "updatedAt": "2026-10-03T07:07:40.453Z"
     },
     {
       "id": 25,
@@ -682,7 +645,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 18:52:47"
+      "updatedAt": "2026-10-03T07:07:40.481Z"
     },
     {
       "id": 26,
@@ -694,7 +657,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 3000,
+      "currentBalance": 6000,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -710,7 +673,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:59:21"
+      "updatedAt": "2026-10-03T07:10:02.037Z"
     },
     {
       "id": 27,
@@ -722,7 +685,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 19140,
+      "currentBalance": 22140,
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "reminderRule": {
@@ -738,39 +701,11 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:59:28"
-    },
-    {
-      "id": 28,
-      "name": "Amzera  SUPER ELECTRONIC",
-      "accountCode": "ACC-0028",
-      "phone": "7000804866",
-      "email": "pintup711@gmail.com",
-      "address": "Amzera",
-      "gstin": "",
-      "partyType": "CUSTOMER",
-      "openingBalance": 0,
-      "currentBalance": 10000,
-      "firmId": 8,
-      "firmName": "Krishi sewa kendra",
-      "reminderRule": {
-        "frequency": "DAILY",
-        "daysOfWeek": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6
-        ],
-        "minAmount": 500
-      },
-      "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 10:59:34"
+      "updatedAt": "2026-10-03T07:10:02.321Z"
     },
     {
       "id": 29,
-      "name": "Amzera JUBER MANSURI",
+      "name": "AMZREA JUBER MANSURI",
       "accountCode": "ACC-0029",
       "phone": "7047038794",
       "email": "khanzuber342@gmail.com",
@@ -794,7 +729,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 08:49:04"
+      "updatedAt": "2026-10-03T07:21:27.932Z"
     },
     {
       "id": 30,
@@ -806,7 +741,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 0,
+      "currentBalance": 1500,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -822,7 +757,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-24 11:36:53"
+      "updatedAt": "2026-10-03T07:10:03.128Z"
     },
     {
       "id": 31,
@@ -834,7 +769,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 6000,
+      "currentBalance": 10000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -850,7 +785,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 08:49:09"
+      "updatedAt": "2026-10-03T07:18:50.588Z"
     },
     {
       "id": 32,
@@ -878,7 +813,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 10:35:15"
+      "updatedAt": "2026-10-03T07:17:37.781Z"
     },
     {
       "id": 33,
@@ -906,7 +841,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 08:49:22"
+      "updatedAt": "2026-10-03T07:07:40.670Z"
     },
     {
       "id": 34,
@@ -934,7 +869,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-25 18:36:19"
+      "updatedAt": "2026-10-03T07:07:40.698Z"
     },
     {
       "id": 35,
@@ -946,7 +881,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 1500,
+      "currentBalance": 3000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -962,7 +897,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:16:27"
+      "updatedAt": "2026-10-03T07:10:03.555Z"
     },
     {
       "id": 36,
@@ -974,7 +909,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 9000,
+      "currentBalance": 12000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -990,7 +925,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:00:06"
+      "updatedAt": "2026-10-03T07:12:37.287Z"
     },
     {
       "id": 37,
@@ -1002,7 +937,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 20000,
+      "currentBalance": 25000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1018,7 +953,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:00:12"
+      "updatedAt": "2026-10-03T07:10:04.135Z"
     },
     {
       "id": 38,
@@ -1046,11 +981,11 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:00:19"
+      "updatedAt": "2026-10-03T07:07:40.798Z"
     },
     {
       "id": 39,
-      "name": "Hanumantiya kag  Raghunandan",
+      "name": "hanumatiya kag orignal Raghunandan",
       "accountCode": "ACC-0039",
       "phone": "7697264378",
       "email": "raghunandanraghnandanmaru@gmail.com",
@@ -1058,7 +993,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 6000,
+      "currentBalance": 8000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1074,7 +1009,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:00:25"
+      "updatedAt": "2026-10-03T07:16:16.438Z"
     },
     {
       "id": 40,
@@ -1102,7 +1037,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-18 14:39:26"
+      "updatedAt": "2026-10-03T07:07:40.834Z"
     },
     {
       "id": 41,
@@ -1114,7 +1049,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 1500,
+      "currentBalance": 3000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1130,7 +1065,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 10:35:42"
+      "updatedAt": "2026-10-03T07:10:04.778Z"
     },
     {
       "id": 42,
@@ -1158,7 +1093,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:00:41"
+      "updatedAt": "2026-10-03T07:07:40.867Z"
     },
     {
       "id": 43,
@@ -1186,7 +1121,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:12:03"
+      "updatedAt": "2026-10-03T07:19:45.632Z"
     },
     {
       "id": 44,
@@ -1214,7 +1149,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-17 13:05:42"
+      "updatedAt": "2026-10-03T07:07:40.900Z"
     },
     {
       "id": 45,
@@ -1242,7 +1177,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-07-25 05:56:23"
+      "updatedAt": "2026-10-03T07:07:40.921Z"
     },
     {
       "id": 46,
@@ -1270,7 +1205,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-15 17:02:45"
+      "updatedAt": "2026-10-03T07:07:40.946Z"
     },
     {
       "id": 47,
@@ -1282,7 +1217,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 4000,
+      "currentBalance": 8000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1298,7 +1233,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:12:12"
+      "updatedAt": "2026-10-03T07:10:05.446Z"
     },
     {
       "id": 48,
@@ -1326,7 +1261,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-27 15:49:19"
+      "updatedAt": "2026-10-03T07:07:41.000Z"
     },
     {
       "id": 49,
@@ -1354,7 +1289,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:12:18"
+      "updatedAt": "2026-10-03T07:07:41.031Z"
     },
     {
       "id": 50,
@@ -1366,7 +1301,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 0,
+      "currentBalance": 2000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1382,7 +1317,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 17:13:32"
+      "updatedAt": "2026-10-03T07:10:05.836Z"
     },
     {
       "id": 51,
@@ -1410,7 +1345,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 16:30:01"
+      "updatedAt": "2026-10-03T07:07:41.083Z"
     },
     {
       "id": 52,
@@ -1422,7 +1357,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 0,
+      "currentBalance": 2000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1438,7 +1373,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 17:21:12"
+      "updatedAt": "2026-10-03T07:10:06.283Z"
     },
     {
       "id": 53,
@@ -1466,7 +1401,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-28 17:48:28"
+      "updatedAt": "2026-10-03T07:07:41.131Z"
     },
     {
       "id": 54,
@@ -1494,7 +1429,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-29 18:01:47"
+      "updatedAt": "2026-10-03T07:07:41.148Z"
     },
     {
       "id": 55,
@@ -1506,7 +1441,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 8760,
+      "currentBalance": 10760,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1522,7 +1457,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:25:53"
+      "updatedAt": "2026-10-03T07:10:07.023Z"
     },
     {
       "id": 56,
@@ -1550,7 +1485,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:13:22"
+      "updatedAt": "2026-10-03T07:07:41.184Z"
     },
     {
       "id": 57,
@@ -1562,7 +1497,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 10000,
+      "currentBalance": 12000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1578,7 +1513,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:13:31"
+      "updatedAt": "2026-10-03T07:10:07.669Z"
     },
     {
       "id": 58,
@@ -1590,7 +1525,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 0,
+      "currentBalance": 2000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1606,7 +1541,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 13:30:57"
+      "updatedAt": "2026-10-03T07:10:08.049Z"
     },
     {
       "id": 59,
@@ -1634,7 +1569,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-29 18:00:25"
+      "updatedAt": "2026-10-03T07:07:41.250Z"
     },
     {
       "id": 60,
@@ -1646,7 +1581,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 23180,
+      "currentBalance": 26180,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1662,7 +1597,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 08:50:41"
+      "updatedAt": "2026-10-03T07:10:08.350Z"
     },
     {
       "id": 61,
@@ -1690,7 +1625,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-07-25 05:56:23"
+      "updatedAt": "2026-10-03T07:07:41.286Z"
     },
     {
       "id": 62,
@@ -1702,7 +1637,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 4000,
+      "currentBalance": 9000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1718,7 +1653,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 17:09:25"
+      "updatedAt": "2026-10-03T07:12:05.228Z"
     },
     {
       "id": 63,
@@ -1746,7 +1681,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 17:30:27"
+      "updatedAt": "2026-10-03T07:07:41.334Z"
     },
     {
       "id": 64,
@@ -1774,7 +1709,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-07-25 05:56:23"
+      "updatedAt": "2026-10-03T07:07:41.350Z"
     },
     {
       "id": 65,
@@ -1802,7 +1737,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-08-19 18:44:54"
+      "updatedAt": "2026-10-03T07:07:41.367Z"
     },
     {
       "id": 66,
@@ -1814,7 +1749,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 2000,
+      "currentBalance": 4000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1830,7 +1765,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 16:59:45"
+      "updatedAt": "2026-10-03T07:10:48.421Z"
     },
     {
       "id": 67,
@@ -1858,7 +1793,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 17:40:59"
+      "updatedAt": "2026-10-03T07:07:41.418Z"
     },
     {
       "id": 68,
@@ -1886,7 +1821,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 16:44:48"
+      "updatedAt": "2026-10-03T07:07:41.435Z"
     },
     {
       "id": 69,
@@ -1914,7 +1849,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-10 15:42:51"
+      "updatedAt": "2026-10-03T07:07:41.452Z"
     },
     {
       "id": 70,
@@ -1942,7 +1877,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 16:51:46"
+      "updatedAt": "2026-10-03T07:07:41.479Z"
     },
     {
       "id": 71,
@@ -1970,7 +1905,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-14 15:31:59"
+      "updatedAt": "2026-10-03T07:07:41.496Z"
     },
     {
       "id": 72,
@@ -1982,7 +1917,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 9000,
+      "currentBalance": 15000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -1998,7 +1933,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:10"
+      "updatedAt": "2026-10-03T07:10:09.352Z"
     },
     {
       "id": 74,
@@ -2010,7 +1945,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 16000,
+      "currentBalance": 28000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2026,7 +1961,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:17"
+      "updatedAt": "2026-10-03T07:10:09.616Z"
     },
     {
       "id": 75,
@@ -2054,7 +1989,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:24"
+      "updatedAt": "2026-10-03T07:25:30.105Z"
     },
     {
       "id": 76,
@@ -2066,7 +2001,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 20980,
+      "currentBalance": 29980,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2082,7 +2017,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:34"
+      "updatedAt": "2026-10-03T07:10:10.219Z"
     },
     {
       "id": 77,
@@ -2110,7 +2045,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:46"
+      "updatedAt": "2026-10-03T07:07:41.602Z"
     },
     {
       "id": 78,
@@ -2122,7 +2057,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 4500,
+      "currentBalance": 6000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2138,7 +2073,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:14:51"
+      "updatedAt": "2026-10-03T07:10:10.474Z"
     },
     {
       "id": 79,
@@ -2166,7 +2101,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-17 14:39:12"
+      "updatedAt": "2026-10-03T07:07:41.648Z"
     },
     {
       "id": 80,
@@ -2194,7 +2129,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 10:41:01"
+      "updatedAt": "2026-10-03T07:07:41.667Z"
     },
     {
       "id": 81,
@@ -2206,7 +2141,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 3000,
+      "currentBalance": 4500,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2222,7 +2157,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 10:41:12"
+      "updatedAt": "2026-10-03T07:10:10.734Z"
     },
     {
       "id": 82,
@@ -2234,7 +2169,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 2000,
+      "currentBalance": 4000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2250,7 +2185,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:15:06"
+      "updatedAt": "2026-10-03T07:10:10.972Z"
     },
     {
       "id": 83,
@@ -2278,7 +2213,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-07-25 05:56:23"
+      "updatedAt": "2026-10-03T07:07:41.734Z"
     },
     {
       "id": 84,
@@ -2306,7 +2241,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-29 10:15:39"
+      "updatedAt": "2026-10-03T07:07:41.751Z"
     },
     {
       "id": 85,
@@ -2318,7 +2253,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 3000,
+      "currentBalance": 4500,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2334,7 +2269,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:15:19"
+      "updatedAt": "2026-10-03T07:10:11.204Z"
     },
     {
       "id": 86,
@@ -2346,7 +2281,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 2000,
+      "currentBalance": 4000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2362,7 +2297,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-09-30 10:41:39"
+      "updatedAt": "2026-10-03T07:10:11.448Z"
     },
     {
       "id": 87,
@@ -2374,7 +2309,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 3000,
+      "currentBalance": 4500,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2390,7 +2325,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:15:29"
+      "updatedAt": "2026-10-03T07:10:11.804Z"
     },
     {
       "id": 88,
@@ -2402,7 +2337,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 2000,
+      "currentBalance": 4000,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2418,7 +2353,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-01 19:50:39"
+      "updatedAt": "2026-10-03T07:12:20.103Z"
     },
     {
       "id": 89,
@@ -2430,7 +2365,7 @@
       "gstin": "",
       "partyType": "CUSTOMER",
       "openingBalance": 0,
-      "currentBalance": 23800,
+      "currentBalance": 38800,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "reminderRule": {
@@ -2446,7 +2381,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 11:15:50"
+      "updatedAt": "2026-10-03T07:10:12.310Z"
     },
     {
       "id": 91,
@@ -2474,7 +2409,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-25 11:26:22",
-      "updatedAt": "2026-10-02 13:21:53"
+      "updatedAt": "2026-10-03T07:07:41.874Z"
     },
     {
       "id": 92,
@@ -2502,7 +2437,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-26 06:03:23",
-      "updatedAt": "2026-10-02 16:48:02"
+      "updatedAt": "2026-10-03T07:07:41.896Z"
     },
     {
       "id": 93,
@@ -2530,7 +2465,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-29 12:31:18",
-      "updatedAt": "2026-10-03 07:22:47"
+      "updatedAt": "2026-10-03T07:07:41.913Z"
     },
     {
       "id": 94,
@@ -2558,7 +2493,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-07-31 05:21:34",
-      "updatedAt": "2026-10-01 21:34:21"
+      "updatedAt": "2026-10-03T07:07:41.930Z"
     },
     {
       "id": 97,
@@ -2586,7 +2521,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-09-20 07:50:28",
-      "updatedAt": "2026-09-21 12:17:40"
+      "updatedAt": "2026-10-03T07:07:41.949Z"
     },
     {
       "id": 98,
@@ -2614,7 +2549,7 @@
         "minAmount": 500
       },
       "createdAt": "2026-09-27 06:34:41",
-      "updatedAt": "2026-09-27 17:14:24"
+      "updatedAt": "2026-10-03T07:07:41.970Z"
     },
     {
       "name": "Amjhera Arshad",
@@ -2627,7 +2562,7 @@
       "openingBalance": 0,
       "currentBalance": 0,
       "createdAt": "2026-09-27T07:39:23.394Z",
-      "updatedAt": "2026-10-03T06:06:06.550Z",
+      "updatedAt": "2026-10-03T07:07:41.997Z",
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "id": 101
@@ -2645,7 +2580,7 @@
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "createdAt": "2026-09-27T08:21:01.496Z",
-      "updatedAt": "2026-10-03T06:06:06.560Z",
+      "updatedAt": "2026-10-03T07:07:42.016Z",
       "id": 102
     },
     {
@@ -2661,7 +2596,7 @@
       "firmId": 7,
       "firmName": "Shadab Computers",
       "createdAt": "2026-09-27T12:23:50.605Z",
-      "updatedAt": "2026-10-03T06:06:06.569Z",
+      "updatedAt": "2026-10-03T07:07:42.034Z",
       "id": 103
     },
     {
@@ -2677,8 +2612,33 @@
       "firmId": 8,
       "firmName": "Krishi sewa kendra",
       "createdAt": "2026-09-28T15:16:09.265Z",
-      "updatedAt": "2026-10-03T06:06:06.578Z",
+      "updatedAt": "2026-10-03T07:07:42.050Z",
       "id": 104
+    },
+    {
+      "name": "AMZERA SUPER ELECTRONIC",
+      "accountCode": "CUST_MUS1Y2JO",
+      "phone": "",
+      "partyType": "CUSTOMER",
+      "openingBalance": 0,
+      "currentBalance": 15000,
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "reminderRule": {
+        "frequency": "DAILY",
+        "daysOfWeek": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "minAmount": 1000
+      },
+      "createdAt": "2026-10-03T07:10:02.340Z",
+      "updatedAt": "2026-10-03T07:10:02.605Z",
+      "id": 105
     }
   ],
   "transactions": [
@@ -70165,6 +70125,717 @@
       "attachments": [],
       "createdAt": "2026-09-27T12:25:30.872Z",
       "id": 4031
+    },
+    {
+      "voucherNumber": "SL-399776-8365",
+      "type": "SALE",
+      "partyId": 6,
+      "partyName": "Amzera Amit Pan",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:09:59.776Z",
+      "id": 4032
+    },
+    {
+      "voucherNumber": "SL-399994-8009",
+      "type": "SALE",
+      "partyId": 9,
+      "partyName": "Amzera ANGEL MOBAIL",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:09:59.994Z",
+      "id": 4033
+    },
+    {
+      "voucherNumber": "SL-400260-8868",
+      "type": "SALE",
+      "partyId": 13,
+      "partyName": "Amzera KUMRAWAT MOBILE MAGOD",
+      "date": "2026-10-03",
+      "amount": 5000,
+      "paidAmount": 0,
+      "balanceDue": 5000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹5000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:00.260Z",
+      "id": 4034
+    },
+    {
+      "voucherNumber": "SL-400488-6676",
+      "type": "SALE",
+      "partyId": 15,
+      "partyName": "Amzera MOHAN PATEL",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:00.488Z",
+      "id": 4035
+    },
+    {
+      "voucherNumber": "SL-400725-4011",
+      "type": "SALE",
+      "partyId": 16,
+      "partyName": "Amzera NILKANTH TOUR & TRAVEL",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:00.725Z",
+      "id": 4036
+    },
+    {
+      "voucherNumber": "SL-400963-6765",
+      "type": "SALE",
+      "partyId": 17,
+      "partyName": "Amzera NOVELTI MOBILE",
+      "date": "2026-10-03",
+      "amount": 6000,
+      "paidAmount": 0,
+      "balanceDue": 6000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹6000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:00.963Z",
+      "id": 4037
+    },
+    {
+      "voucherNumber": "SL-401226-9418",
+      "type": "SALE",
+      "partyId": 19,
+      "partyName": "Amzera PRAVISH",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:01.226Z",
+      "id": 4038
+    },
+    {
+      "voucherNumber": "SL-401722-8613",
+      "type": "SALE",
+      "partyId": 26,
+      "partyName": "Amzera SOMANI PHOTO COPY CENTER",
+      "date": "2026-10-03",
+      "amount": 3000,
+      "paidAmount": 0,
+      "balanceDue": 3000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹3000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:01.722Z",
+      "id": 4040
+    },
+    {
+      "voucherNumber": "SL-402064-1890",
+      "type": "SALE",
+      "partyId": 27,
+      "partyName": "Amzera STAR MOBILE",
+      "date": "2026-10-03",
+      "amount": 3000,
+      "paidAmount": 0,
+      "balanceDue": 3000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹3000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:02.064Z",
+      "id": 4041
+    },
+    {
+      "voucherNumber": "SL-402392-5104",
+      "type": "SALE",
+      "partyId": 105,
+      "partyName": "AMZERA SUPER ELECTRONIC",
+      "date": "2026-10-03",
+      "amount": 15000,
+      "paidAmount": 0,
+      "balanceDue": 15000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹15000)",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "createdAt": "2026-10-03T07:10:02.392Z",
+      "id": 4042
+    },
+    {
+      "voucherNumber": "SL-402909-3128",
+      "type": "SALE",
+      "partyId": 30,
+      "partyName": "Badodiya Navdeep Mahakal",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:02.909Z",
+      "id": 4044
+    },
+    {
+      "voucherNumber": "SL-403154-7569",
+      "type": "SALE",
+      "partyId": 32,
+      "partyName": "BHILKHEDI BHARATSINGH",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:03.154Z",
+      "id": 4045
+    },
+    {
+      "voucherNumber": "SL-403353-3191",
+      "type": "SALE",
+      "partyId": 35,
+      "partyName": "CHALNI CHANDNI KIRANA",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:03.353Z",
+      "id": 4046
+    },
+    {
+      "voucherNumber": "SL-403586-6966",
+      "type": "SALE",
+      "partyId": 36,
+      "partyName": "DATTIGAON RAKSHITA MOBIL 660694209",
+      "date": "2026-10-03",
+      "amount": 3000,
+      "paidAmount": 0,
+      "balanceDue": 3000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹660685209)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:03.586Z",
+      "id": 4047,
+      "items": []
+    },
+    {
+      "voucherNumber": "SL-403854-4681",
+      "type": "SALE",
+      "partyId": 37,
+      "partyName": "DATTIGOAN GURUDAYA MOBILE",
+      "date": "2026-10-03",
+      "amount": 5000,
+      "paidAmount": 0,
+      "balanceDue": 5000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹5000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:03.854Z",
+      "id": 4048
+    },
+    {
+      "voucherNumber": "SL-404199-2847",
+      "type": "SALE",
+      "partyId": 107,
+      "partyName": "hanumatiya kag orignal Raghunandan",
+      "date": "2026-10-03",
+      "amount": 8000,
+      "paidAmount": 0,
+      "balanceDue": 8000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹8000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:04.199Z",
+      "id": 4049
+    },
+    {
+      "voucherNumber": "SL-404486-9379",
+      "type": "SALE",
+      "partyId": 41,
+      "partyName": "Khamaliy Rishbha Kirana",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:04.486Z",
+      "id": 4050
+    },
+    {
+      "voucherNumber": "SL-405090-5143",
+      "type": "SALE",
+      "partyId": 47,
+      "partyName": "RAJGARH AVANTIKA COMPUTERS",
+      "date": "2026-10-03",
+      "amount": 4000,
+      "paidAmount": 0,
+      "balanceDue": 4000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹4000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:05.090Z",
+      "id": 4052
+    },
+    {
+      "voucherNumber": "SL-405492-7174",
+      "type": "SALE",
+      "partyId": 50,
+      "partyName": "RAJGARH DECENT GRAPHICS",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:05.492Z",
+      "id": 4053
+    },
+    {
+      "voucherNumber": "SL-405877-3981",
+      "type": "SALE",
+      "partyId": 52,
+      "partyName": "RAJGARH JAGDISH TELECOM",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:05.877Z",
+      "id": 4054
+    },
+    {
+      "voucherNumber": "SL-406313-7000",
+      "type": "SALE",
+      "partyId": 55,
+      "partyName": "RAJGARH KING WATCH",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:06.313Z",
+      "id": 4055
+    },
+    {
+      "voucherNumber": "SL-407075-7141",
+      "type": "SALE",
+      "partyId": 57,
+      "partyName": "RAJGARH LAKHAN SOLANKI",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:07.075Z",
+      "id": 4056
+    },
+    {
+      "voucherNumber": "SL-407739-4148",
+      "type": "SALE",
+      "partyId": 58,
+      "partyName": "RAJGARH MAA TELECOM",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:07.739Z",
+      "id": 4057
+    },
+    {
+      "voucherNumber": "SL-408076-6082",
+      "type": "SALE",
+      "partyId": 60,
+      "partyName": "RAJGARH NAVARATAN DIGITAL GALLERY",
+      "date": "2026-10-03",
+      "amount": 3000,
+      "paidAmount": 0,
+      "balanceDue": 3000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹3000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:08.076Z",
+      "id": 4058
+    },
+    {
+      "voucherNumber": "SL-408378-3044",
+      "type": "SALE",
+      "partyId": 62,
+      "partyName": "RAJGARH NILESH JAIN 661994459",
+      "date": "2026-10-03",
+      "amount": 5000,
+      "paidAmount": 0,
+      "balanceDue": 5000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹661990459)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:08.378Z",
+      "id": 4059,
+      "items": []
+    },
+    {
+      "voucherNumber": "SL-408668-9954",
+      "type": "SALE",
+      "partyId": 66,
+      "partyName": "RAJGARH SHREE KALPNA GEN.STORE 660455720",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹6604557202000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:08.668Z",
+      "id": 4060,
+      "items": []
+    },
+    {
+      "voucherNumber": "SL-409004-8539",
+      "type": "SALE",
+      "partyId": 72,
+      "partyName": "RINGNOD DINESHCHANDRA GARG",
+      "date": "2026-10-03",
+      "amount": 6000,
+      "paidAmount": 0,
+      "balanceDue": 6000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹6000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:09.004Z",
+      "id": 4061
+    },
+    {
+      "voucherNumber": "SL-409371-5369",
+      "type": "SALE",
+      "partyId": 74,
+      "partyName": "RINGNOD Praveen Kumar Shree Ram",
+      "date": "2026-10-03",
+      "amount": 12000,
+      "paidAmount": 0,
+      "balanceDue": 12000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹12000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:09.371Z",
+      "id": 4062
+    },
+    {
+      "voucherNumber": "SL-409941-7426",
+      "type": "SALE",
+      "partyId": 76,
+      "partyName": "RINGNOD YADAV TELCOM",
+      "date": "2026-10-03",
+      "amount": 9000,
+      "paidAmount": 0,
+      "balanceDue": 9000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹9000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:09.941Z",
+      "id": 4064
+    },
+    {
+      "voucherNumber": "SL-410240-3977",
+      "type": "SALE",
+      "partyId": 78,
+      "partyName": "SARDARPUR JAYESH",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:10.240Z",
+      "id": 4065
+    },
+    {
+      "voucherNumber": "SL-410498-8262",
+      "type": "SALE",
+      "partyId": 81,
+      "partyName": "SARDARPUR MANGILAL DOSRE",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:10.498Z",
+      "id": 4066
+    },
+    {
+      "voucherNumber": "SL-410752-2759",
+      "type": "SALE",
+      "partyId": 82,
+      "partyName": "SARDARPUR MODI COSMATIC",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:10.752Z",
+      "id": 4067
+    },
+    {
+      "voucherNumber": "SL-410992-6013",
+      "type": "SALE",
+      "partyId": 85,
+      "partyName": "SARDARPUR SAKSHAM MOBIL",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:10.992Z",
+      "id": 4068
+    },
+    {
+      "voucherNumber": "SL-411223-1022",
+      "type": "SALE",
+      "partyId": 86,
+      "partyName": "SARDARPUR SANJAY",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹2000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:11.223Z",
+      "id": 4069
+    },
+    {
+      "voucherNumber": "SL-411468-6623",
+      "type": "SALE",
+      "partyId": 87,
+      "partyName": "SARDARPUR SIDDHI VINAYAK",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balanceDue": 1500,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹1500)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:11.468Z",
+      "id": 4070
+    },
+    {
+      "voucherNumber": "SL-411821-6136",
+      "type": "SALE",
+      "partyId": 88,
+      "partyName": "TIRLA DRASHYA MOBIL 661506489",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹661504489)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:11.821Z",
+      "id": 4071,
+      "items": []
+    },
+    {
+      "voucherNumber": "SL-412053-8595",
+      "type": "SALE",
+      "partyId": 89,
+      "partyName": "TIRLA Priyanshsingh solanki",
+      "date": "2026-10-03",
+      "amount": 15000,
+      "paidAmount": 0,
+      "balanceDue": 15000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "description": "Daily Debtors PDF Sync (+₹15000)",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "createdAt": "2026-10-03T07:10:12.053Z",
+      "id": 4072
+    },
+    {
+      "voucherNumber": "INV-7171",
+      "type": "SALE",
+      "partyId": 39,
+      "partyName": "hanumatiya kag orignal Raghunandan",
+      "date": "2026-10-03",
+      "amount": 2000,
+      "paidAmount": 0,
+      "balanceDue": 2000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "items": [],
+      "description": "",
+      "attachments": [],
+      "createdAt": "2026-10-03T07:16:15.837Z",
+      "id": 4073
+    },
+    {
+      "voucherNumber": "REC-3539",
+      "type": "PAYMENT_IN",
+      "partyId": 13,
+      "partyName": "Amzera KUMRAWAT MOBILE MAGOD",
+      "date": "2026-10-03",
+      "amount": 5000,
+      "paidAmount": 5000,
+      "balanceDue": 0,
+      "paymentStatus": "PAID",
+      "paymentMode": "UPI",
+      "firmId": 8,
+      "firmName": "Krishi sewa kendra",
+      "bankAccountId": 7,
+      "bankAccountName": "Cash in Hand",
+      "description": "",
+      "attachments": [],
+      "createdAt": "2026-10-03T07:17:24.938Z",
+      "id": 4074
+    },
+    {
+      "voucherNumber": "REC-8764",
+      "type": "PAYMENT_IN",
+      "partyId": 32,
+      "partyName": "BHILKHEDI BHARATSINGH",
+      "date": "2026-10-03",
+      "amount": 1500,
+      "paidAmount": 1500,
+      "balanceDue": 0,
+      "paymentStatus": "PAID",
+      "paymentMode": "UPI",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "bankAccountId": 7,
+      "bankAccountName": "Cash in Hand",
+      "description": "",
+      "attachments": [],
+      "createdAt": "2026-10-03T07:17:37.279Z",
+      "id": 4075
+    },
+    {
+      "voucherNumber": "INV-3106",
+      "type": "SALE",
+      "partyId": 31,
+      "partyName": "Badodiya Shin Shakti Sharmaji",
+      "date": "2026-10-03",
+      "amount": 4000,
+      "paidAmount": 0,
+      "balanceDue": 4000,
+      "paymentStatus": "UNPAID",
+      "paymentMode": "CASH",
+      "firmId": 7,
+      "firmName": "Shadab Computers",
+      "items": [],
+      "description": "",
+      "attachments": [],
+      "createdAt": "2026-10-03T07:18:49.617Z",
+      "id": 4076
     }
   ],
   "items": [
@@ -70202,6 +70873,29 @@
       "createdAt": "2026-08-06 14:34:08"
     }
   ],
+  "firms": [
+    {
+      "id": 7,
+      "name": "Shadab Computers",
+      "code": "MAIN",
+      "isDefault": true,
+      "phone": "9303965160",
+      "address": "Rajgarh Dhar",
+      "gstin": "",
+      "firmId": "FIRM_MUI8HFY6_47UPAJ",
+      "createdAt": "2026-09-26T10:15:22.114Z",
+      "upiId": "eazypay.447KINJ6OP7QYA5@ICICI"
+    },
+    {
+      "id": 8,
+      "name": "Krishi sewa kendra",
+      "code": "Ksk",
+      "phone": "9303965160",
+      "isDefault": false,
+      "createdAt": "2026-09-27T07:41:35.514Z",
+      "upiId": "Krishisewa86@icici"
+    }
+  ],
   "bankAccounts": [
     {
       "id": 7,
@@ -70209,7 +70903,7 @@
       "bankName": "Cash Account",
       "accountNumber": "CASH-01",
       "openingBalance": 0,
-      "currentBalance": 0,
+      "currentBalance": 6500,
       "firmId": 7,
       "firmName": "Shadab Computers",
       "createdAt": "2026-09-26T10:15:22.115Z"
@@ -70237,39 +70931,89 @@
       "currentBalance": 0,
       "firmId": 7,
       "firmName": "Shadab Computers",
-      "createdAt": "2026-09-27T07:45:43.253Z"
+      "createdAt": "2026-09-27T07:45:43.253Z",
+      "upiId": "eazypay.447KINJ6OP7QYA5@ICICI"
     }
   ],
-  "firms": [
+  "businessProfile": [
     {
-      "id": 7,
-      "name": "Shadab Computers",
-      "code": "MAIN",
-      "isDefault": true,
+      "businessName": "Shadab Computers",
+      "tagline": "Shadab Computers",
+      "ownerName": "Admin",
       "phone": "9303965160",
+      "email": "firm_mui8hfy6_47upaj@vyapaar-cloud.internal",
       "address": "Rajgarh Dhar",
       "gstin": "",
+      "upiId": "",
+      "currencySymbol": "₹",
       "firmId": "FIRM_MUI8HFY6_47UPAJ",
-      "createdAt": "2026-09-26T10:15:22.114Z"
-    },
-    {
-      "id": 8,
-      "name": "Krishi sewa kendra",
-      "code": "Ksk",
-      "phone": "9303965160",
-      "isDefault": false,
-      "createdAt": "2026-09-27T07:41:35.514Z"
+      "securityPin": "1234",
+      "isPinLockEnabled": false,
+      "firmCloudAccount": {
+        "firmId": "FIRM_MUI8HFY6_47UPAJ",
+        "cloudProvider": "GOOGLE_DRIVE",
+        "cloudAccountEmail": "firm_mui8hfy6_47upaj@vyapaar-cloud.internal",
+        "cloudConnectionStatus": "SYNCING",
+        "cloudConnectedAt": "2026-10-03T07:07:39.647Z",
+        "cloudLastSyncAt": "2026-10-03T07:07:24.990Z",
+        "cloudSyncCursor": 1791011259647,
+        "cloudSyncVersion": 14,
+        "cloudDeviceId": "DEV_DESK_MUM91X7B_L2EA",
+        "cloudOwnerDeviceId": "DEV_MOB_MUS1UH0P_6BTQ",
+        "activeDevices": [
+          {
+            "deviceId": "DEV_MOB_MUI8CJ7O_ICN1",
+            "deviceName": "Owner Primary Terminal",
+            "role": "Owner",
+            "lastSyncAt": "2026-09-27T12:26:00.585Z",
+            "isActive": true,
+            "workerName": "Owner Primary Terminal"
+          },
+          {
+            "deviceId": "DEV_DESK_MUJROH9S_786O",
+            "deviceName": "Web Terminal",
+            "role": "Owner",
+            "workerName": "Owner Terminal",
+            "lastSyncAt": "2026-09-27T12:03:59.012Z",
+            "isActive": true
+          },
+          {
+            "deviceId": "DEV_DESK_MUJRZASH_7VRH",
+            "deviceName": "Web Terminal",
+            "role": "Owner",
+            "workerName": "Owner Terminal",
+            "lastSyncAt": "2026-09-27T12:29:55.571Z",
+            "isActive": true
+          },
+          {
+            "deviceId": "TEST_DEV",
+            "deviceName": "Test Runner",
+            "role": "Owner",
+            "workerName": "Owner Terminal",
+            "lastSyncAt": "2026-09-27T12:25:00.447Z",
+            "isActive": true
+          },
+          {
+            "deviceId": "DEV_DESK_MUM91X7B_L2EA",
+            "deviceName": "Web Terminal",
+            "role": "Owner",
+            "workerName": "Owner Terminal",
+            "lastSyncAt": "2026-10-03T07:07:39.063Z",
+            "isActive": true
+          },
+          {
+            "deviceId": "device_remote",
+            "deviceName": "Remote Device",
+            "role": "Owner",
+            "workerName": "Owner Terminal",
+            "lastSyncAt": "2026-10-03T07:04:24.897Z",
+            "isActive": true
+          }
+        ],
+        "autoSyncEnabled": true
+      },
+      "id": 3
     }
   ],
-  "coWorkers": [
-    {
-      "name": "Madhuri",
-      "phone": "7074661004",
-      "role": "Secondary Admin",
-      "pin": "3737",
-      "status": "ACTIVE",
-      "createdAt": "2026-09-26T17:03:51.809Z",
-      "id": 7
-    }
-  ]
+  "coWorkers": []
 }

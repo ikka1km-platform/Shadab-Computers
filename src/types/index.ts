@@ -98,7 +98,7 @@ export interface BankAccount {
   currentBalance: number;
   firmId?: number;
   firmName?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface Transaction {

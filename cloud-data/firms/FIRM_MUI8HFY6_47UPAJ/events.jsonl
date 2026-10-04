@@ -5,3 +5,5 @@
 {"action":"TRANSACTION_CREATED","txnId":"INV-5123","amount":1500,"type":"SALE","deviceId":"DEV_MOB_MUI8CJ7O_ICN1","recordedAt":"2026-09-27T12:22:56.652Z"}
 {"action":"TRANSACTION_CREATED","txnId":"REC-1827","amount":1500,"type":"PAYMENT_IN","deviceId":"DEV_MOB_MUI8CJ7O_ICN1","recordedAt":"2026-09-27T12:25:29.785Z"}
 {"action":"TRANSACTION_CREATED","txnId":"REC-2300","amount":3000,"type":"PAYMENT_IN","deviceId":"DEV_MOB_MUI8CJ7O_ICN1","recordedAt":"2026-09-27T12:26:00.584Z"}
+{"type":"FIRM_INITIALIZED","deviceId":"DEV_TEST_VERIFY","totalParties":92,"totalTransactions":3961,"recordedAt":"2026-10-03T06:14:46.590Z"}
+{"type":"FIRM_INITIALIZED","deviceId":"DEV_DESK_MUM91X7B_L2EA","totalParties":96,"totalTransactions":3967,"recordedAt":"2026-10-03T06:16:55.164Z"}

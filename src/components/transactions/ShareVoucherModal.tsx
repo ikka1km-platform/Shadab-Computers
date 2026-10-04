@@ -57,9 +57,18 @@ export const ShareVoucherModal: React.FC<ShareVoucherModalProps> = ({
     ? transaction.balanceDue 
     : Math.max(0, transaction.amount - paidAmt);
 
+  // Resolve accurate UPI ID
+  const isAmzera = Boolean(
+    (transaction.firmName && /AMZERA|AMZREA|KRISHI/i.test(transaction.firmName)) ||
+    (party?.name && /AMZERA|AMZREA|KRISHI/i.test(party.name))
+  );
+  const defaultUpi = isAmzera ? 'Krishisewa86@icici' : 'eazypay.447KINJ6OP7QYA5@ICICI';
+  const effectiveUpi = (profile.upiId && profile.upiId !== 'krishisewa@sbi') ? profile.upiId : defaultUpi;
+  const effectiveFirmName = transaction.firmName || profile.businessName || (isAmzera ? 'Krishi sewa kendra' : 'Shadab Computers');
+
   // UPI click-to-pay link (open amount so customer can pay manually)
-  const upiLink = profile.upiId
-    ? `upi://pay?pa=${encodeURIComponent(profile.upiId)}&pn=${encodeURIComponent(profile.businessName)}&cu=INR`
+  const upiLink = effectiveUpi
+    ? `upi://pay?pa=${encodeURIComponent(effectiveUpi)}&pn=${encodeURIComponent(effectiveFirmName)}&cu=INR`
     : '';
 
   // Formatted WhatsApp message body
@@ -76,7 +85,7 @@ ${itemsText ? `\n*Items:*\n${itemsText}\n` : ''}
 ${balanceDue > 0 ? `*⚠️ Balance Due:* ${formatCurrency(balanceDue)}` : '*Payment Status:* Fully Settled ✓'}
 ${transaction.description ? `\n*Note:* ${transaction.description}` : ''}
 ----------------------------------------
-${upiLink ? `💳 *Pay Online via UPI:* ${profile.upiId}\nTap to Pay: ${upiLink}\n\n` : ''}Thank you for your business!
+${upiLink ? `💳 *Pay Online via UPI:* ${effectiveUpi}\nTap to Pay: ${upiLink}\n\n` : ''}Thank you for your business!
 _${profile.businessName}${profile.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
   const handleShareWhatsApp = () => {

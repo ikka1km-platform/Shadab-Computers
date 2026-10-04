@@ -160,6 +160,30 @@ export async function initializeDatabase() {
         } catch {}
       }
     }
+    // Proactively heal UPI IDs for Shadab Computers and Krishi Sewa Kendra accounts
+    const shadabBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001812' || (b.accountName ? /shadab/i.test(b.accountName) && !b.accountNumber?.includes('CASH') : false)).toArray();
+    for (const sb of shadabBanks) {
+      if (sb.id && (!sb.upiId || sb.upiId === 'krishisewa@sbi')) {
+        await db.bankAccounts.update(sb.id, { upiId: 'eazypay.447KINJ6OP7QYA5@ICICI' });
+      }
+    }
+
+    const krishiBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001843' || (b.accountName ? /krishi/i.test(b.accountName) : false)).toArray();
+    for (const kb of krishiBanks) {
+      if (kb.id && (!kb.upiId || kb.upiId === 'krishisewa@sbi')) {
+        await db.bankAccounts.update(kb.id, { upiId: 'Krishisewa86@icici' });
+      }
+    }
+
+    const allFirms = await db.firms.toArray();
+    for (const f of allFirms) {
+      if (f.id && /shadab/i.test(f.name || '') && (!f.upiId || f.upiId === 'krishisewa@sbi')) {
+        await db.firms.update(f.id, { upiId: 'eazypay.447KINJ6OP7QYA5@ICICI' });
+      }
+      if (f.id && /krishi/i.test(f.name || '') && (!f.upiId || f.upiId === 'krishisewa@sbi')) {
+        await db.firms.update(f.id, { upiId: 'Krishisewa86@icici' });
+      }
+    }
   } catch (cleanErr) {
     console.warn('Demo cleanup notice:', cleanErr);
   }
@@ -178,7 +202,7 @@ export async function initializeDatabase() {
       email: '',
       address: 'Rajgarh',
       gstin: '',
-      upiId: '',
+      upiId: 'eazypay.447KINJ6OP7QYA5@ICICI',
       currencySymbol: '₹',
       firmId: initialFirmId,
       securityPin: '1234',
@@ -216,11 +240,12 @@ export async function initializeDatabase() {
         address: 'Rajgarh',
         gstin: '',
         firmId: initialFirmId,
+        upiId: 'eazypay.447KINJ6OP7QYA5@ICICI',
         createdAt: new Date().toISOString(),
       });
     }
 
-    // Seed default Cash in Hand account
+    // Seed default Cash in Hand account and ICICI bank account
     const bankCount = await db.bankAccounts.count();
     if (bankCount === 0) {
       await db.bankAccounts.add({
@@ -229,6 +254,17 @@ export async function initializeDatabase() {
         accountNumber: 'CASH-01',
         ifscCode: '',
         upiId: '',
+        openingBalance: 0,
+        currentBalance: 0,
+        firmName: 'Shadab Computers',
+        createdAt: new Date().toISOString(),
+      });
+      await db.bankAccounts.add({
+        accountName: 'Shadab Computers',
+        bankName: 'ICICI Bank',
+        accountNumber: '406205001812',
+        ifscCode: 'ICIC0004062',
+        upiId: 'eazypay.447KINJ6OP7QYA5@ICICI',
         openingBalance: 0,
         currentBalance: 0,
         firmName: 'Shadab Computers',

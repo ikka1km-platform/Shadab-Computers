@@ -31,27 +31,71 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
   const [tone, setTone] = useState<'polite' | 'standard' | 'urgent'>('polite');
   const [copied, setCopied] = useState(false);
 
-  // Identify party's associated firm
-  const partyFirm = firms.find((f) => f.id === party.firmId);
-  const activeFirmName = partyFirm?.name || party.firmName || profile.businessName;
+  // Cash account detector to prevent Cash in Hand from appearing in bank transfer instructions
+  const isCashAccount = (b?: BankAccount): boolean => {
+    if (!b) return false;
+    const num = (b.accountNumber || '').toUpperCase();
+    const name = (b.bankName || '').toLowerCase();
+    const accName = (b.accountName || '').toLowerCase();
+    return num.includes('CASH') || name.includes('cash') || accName.includes('cash');
+  };
 
-  // Find default bank account linked to this firm
-  const firmBanks = bankAccounts.filter((b) => 
-    (party.firmId && b.firmId === party.firmId) || 
-    (partyFirm && b.firmName === partyFirm.name)
+  const realBankAccounts = bankAccounts.filter((b) => !isCashAccount(b));
+
+  const isAmzera = Boolean(
+    (party.name && /AMZERA|AMZREA/i.test(party.name)) ||
+    (party.firmName && /AMZERA|AMZREA|KRISHI/i.test(party.firmName))
   );
 
-  const initialBank = firmBanks.find((b) => b.upiId) || 
+  const krishiSewaFirm = firms.find((f) => f?.name && /krishi\s*sewa/i.test(f.name));
+  const shadabFirm = firms.find((f) => f?.name && /shadab/i.test(f.name)) || firms[0];
+
+  // Identify party's associated firm
+  const partyFirm = firms.find((f) => f.id === party.firmId) || (isAmzera ? krishiSewaFirm : shadabFirm);
+  const activeFirmName = partyFirm?.name || party.firmName || (isAmzera ? 'Krishi sewa kendra' : profile.businessName || 'Shadab Computers');
+  const defaultUpiId = isAmzera ? 'Krishisewa86@icici' : 'eazypay.447KINJ6OP7QYA5@ICICI';
+
+  // Find real bank account linked to this firm
+  const firmBanks = realBankAccounts.filter((b) => 
+    (partyFirm?.id && b.firmId === partyFirm.id) || 
+    (partyFirm?.name && b.firmName === partyFirm.name) ||
+    (isAmzera ? b.accountNumber === '406205001843' : b.accountNumber === '406205001812')
+  );
+
+  const initialBank = firmBanks.find((b) => b.upiId && b.upiId !== 'krishisewa@sbi') || 
                       firmBanks[0] || 
-                      bankAccounts.find((b) => b.isDefault) || 
-                      bankAccounts[0];
+                      realBankAccounts.find((b) => b.isDefault) || 
+                      realBankAccounts[0] ||
+                      (isAmzera ? {
+                        id: 8,
+                        accountName: 'Krishi sewa kendra',
+                        bankName: 'Icici',
+                        accountNumber: '406205001843',
+                        ifscCode: 'ICIC0004062',
+                        upiId: 'Krishisewa86@icici',
+                        openingBalance: 0,
+                        currentBalance: 0,
+                        firmName: 'Krishi sewa kendra',
+                        createdAt: new Date().toISOString(),
+                      } : {
+                        id: 9,
+                        accountName: 'Shadab Computers',
+                        bankName: 'Icicic',
+                        accountNumber: '406205001812',
+                        ifscCode: 'ICIC0004062',
+                        upiId: 'eazypay.447KINJ6OP7QYA5@ICICI',
+                        openingBalance: 0,
+                        currentBalance: 0,
+                        firmName: 'Shadab Computers',
+                        createdAt: new Date().toISOString(),
+                      });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string>(
     initialBank ? `BANK_${initialBank.id}` : 'PROFILE_UPI'
   );
 
   useEffect(() => {
-    const matchedBank = firmBanks.find((b) => b.upiId) || firmBanks[0] || bankAccounts.find((b) => b.isDefault) || bankAccounts[0];
+    const matchedBank = firmBanks.find((b) => b.upiId && b.upiId !== 'krishisewa@sbi') || firmBanks[0] || realBankAccounts.find((b) => b.isDefault) || realBankAccounts[0];
     if (matchedBank) {
       setSelectedAccountId(`BANK_${matchedBank.id}`);
     } else {
@@ -69,10 +113,14 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
 
   if (selectedAccountId.startsWith('BANK_')) {
     const bankId = Number(selectedAccountId.replace('BANK_', ''));
-    activeBank = bankAccounts.find((b) => b.id === bankId);
-    activeUpiId = activeBank?.upiId || partyFirm?.upiId || profile.upiId || '';
+    activeBank = realBankAccounts.find((b) => b.id === bankId) || initialBank;
+    activeUpiId = (activeBank?.upiId && activeBank.upiId !== 'krishisewa@sbi' ? activeBank.upiId : '') ||
+                  (partyFirm?.upiId && partyFirm.upiId !== 'krishisewa@sbi' ? partyFirm.upiId : '') ||
+                  defaultUpiId;
   } else {
-    activeUpiId = partyFirm?.upiId || profile.upiId || '';
+    activeUpiId = (partyFirm?.upiId && partyFirm.upiId !== 'krishisewa@sbi' ? partyFirm.upiId : '') ||
+                  (profile.upiId && profile.upiId !== 'krishisewa@sbi' ? profile.upiId : '') ||
+                  defaultUpiId;
     activeBank = initialBank;
   }
 
@@ -92,7 +140,7 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
     reminderIntro = `URGENT PAYMENT REMINDER: Dear ${party.name}, your payment of ${formatCurrency(dueAmount)} with ${activeFirmName} is overdue. Kindly settle this balance today to avoid disruption in services.`;
   }
 
-  const bankText = activeBank
+  const bankText = activeBank && !isCashAccount(activeBank)
     ? `\n*Bank Transfer Details:*\nBank: ${activeBank.bankName}\nA/C Name: ${activeBank.accountName}\nA/C No: ${activeBank.accountNumber}${activeBank.ifscCode ? `\nIFSC: ${activeBank.ifscCode}` : ''}`
     : '';
 
@@ -171,7 +219,7 @@ ${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}`
 
         <div className="p-5 space-y-4">
           {/* Associated Account & UPI Selection */}
-          {(bankAccounts.length > 0 || profile.upiId) && (
+          {(realBankAccounts.length > 0 || profile.upiId) && (
             <div className="bg-blue-50/60 border border-blue-200/80 p-3 rounded-xl space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-blue-900">
@@ -185,7 +233,7 @@ ${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}`
                 onChange={(e) => setSelectedAccountId(e.target.value)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
               >
-                {bankAccounts.map((b) => (
+                {realBankAccounts.map((b) => (
                   <option key={b.id} value={`BANK_${b.id}`}>
                     {b.bankName} - {b.accountName} {b.upiId ? `(UPI: ${b.upiId})` : ''} {b.firmName ? `[Firm: ${b.firmName}]` : ''}
                   </option>
