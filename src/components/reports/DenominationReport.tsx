@@ -15,7 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Transaction, BusinessProfile, DenominationBreakdown, Firm } from '../../types';
-import { formatCurrency, formatDate, numberToWordsINR } from '../../utils/formatters';
+import { formatCurrency, formatDate, numberToWordsINR, compareTransactionsDesc } from '../../utils/formatters';
 import { generateDailyDenominationPDF } from '../../utils/pdfGenerator';
 import { generateDenominationJPEG, shareDenominationJPEG, saveDenominationJPEG, downloadBlob } from '../../utils/imageGenerator';
 
@@ -138,14 +138,18 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
     }).length;
   };
 
-  // Filter transactions specifically for the selected firm (or ALL)
-  const dayCashTxs = allDayCashTxs.filter((tx) => {
-    if (selectedFirmId === 'ALL') return true;
-    if (tx.firmId !== undefined) return tx.firmId === Number(selectedFirmId);
-    if (activeFirm && tx.firmName) return tx.firmName.toLowerCase() === activeFirm.name.toLowerCase();
-    if (activeFirm?.isDefault && !tx.firmName) return true;
-    return false;
-  });
+  // Filter transactions specifically for the selected firm (or ALL) and sort latest-first
+  const dayCashTxs = useMemo(() => {
+    return allDayCashTxs
+      .filter((tx) => {
+        if (selectedFirmId === 'ALL') return true;
+        if (tx.firmId !== undefined) return tx.firmId === Number(selectedFirmId);
+        if (activeFirm && tx.firmName) return tx.firmName.toLowerCase() === activeFirm.name.toLowerCase();
+        if (activeFirm?.isDefault && !tx.firmName) return true;
+        return false;
+      })
+      .sort(compareTransactionsDesc);
+  }, [allDayCashTxs, selectedFirmId, activeFirm]);
 
   // Aggregate note denominations across receipts on this date for the chosen firm
   const aggregatedDenoms: DenominationBreakdown = {

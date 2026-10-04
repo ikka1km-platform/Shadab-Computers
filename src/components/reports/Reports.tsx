@@ -28,7 +28,7 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import { Party, Transaction, Item, BusinessProfile, Firm, BankAccount } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, compareTransactionsDesc } from '../../utils/formatters';
 import { exportToCsv } from '../../utils/exportToCsv';
 import { DenominationReport } from './DenominationReport';
 import { PaymentReminderModal } from '../reminders/PaymentReminderModal';
@@ -83,6 +83,7 @@ export const Reports: React.FC<ReportsProps> = ({
 
   // Cashflow filter tab (All, Inflow, Outflow, Contra)
   const [cashflowTableFilter, setCashflowTableFilter] = useState<'ALL' | 'IN' | 'OUT' | 'CONTRA'>('ALL');
+  const [sortOrder, setSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
 
   const activeFirm = selectedFirmId !== 'ALL' ? firms.find((f) => f.id === Number(selectedFirmId)) : undefined;
 
@@ -98,12 +99,12 @@ export const Reports: React.FC<ReportsProps> = ({
         });
   }, [transactions, selectedFirmId, activeFirm]);
 
-  // Filter transactions by Date Range
+  // Filter transactions by Date Range and sort latest-first (newest on top)
   const filteredTxs = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
-    return firmFilteredTxs.filter((tx) => {
+    const list = firmFilteredTxs.filter((tx) => {
       const txDateStr = tx.date;
       if (dateFilter === 'ALL') return true;
       if (dateFilter === 'TODAY') return txDateStr === todayStr;
@@ -132,7 +133,13 @@ export const Reports: React.FC<ReportsProps> = ({
 
       return true;
     });
+
+    return list.sort(compareTransactionsDesc);
   }, [firmFilteredTxs, dateFilter, customStartDate, customEndDate]);
+
+  const displayFilteredTxs = useMemo(() => {
+    return sortOrder === 'NEWEST_FIRST' ? filteredTxs : [...filteredTxs].reverse();
+  }, [filteredTxs, sortOrder]);
 
   // Aggregate metrics
   const totalSales = useMemo(() => {
@@ -1227,7 +1234,19 @@ export const Reports: React.FC<ReportsProps> = ({
                   <tr>
                     <th className="p-3">Voucher #</th>
                     <th className="p-3">Type</th>
-                    <th className="p-3">Date</th>
+                    <th className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                        className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Click to toggle sorting (Latest on Top vs Oldest on Top)"
+                      >
+                        <span>Date</span>
+                        <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                          {sortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                        </span>
+                      </button>
+                    </th>
                     <th className="p-3">Particulars / Party</th>
                     <th className="p-3">Mode</th>
                     <th className="p-3 text-right">Inflow (+)</th>
@@ -1235,7 +1254,7 @@ export const Reports: React.FC<ReportsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredTxs.filter((tx) => {
+                  {displayFilteredTxs.filter((tx) => {
                     const isMoneyIn = tx.type === 'SALE' || tx.type === 'PAYMENT_IN' || tx.type === 'DEBIT_NOTE';
                     const isContra = tx.type === 'CONTRA';
                     if (cashflowTableFilter === 'IN') return isMoneyIn && !isContra;
@@ -1249,7 +1268,7 @@ export const Reports: React.FC<ReportsProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredTxs
+                    displayFilteredTxs
                       .filter((tx) => {
                         const isMoneyIn = tx.type === 'SALE' || tx.type === 'PAYMENT_IN' || tx.type === 'DEBIT_NOTE';
                         const isContra = tx.type === 'CONTRA';
@@ -1523,7 +1542,19 @@ export const Reports: React.FC<ReportsProps> = ({
                 <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3">Bill / Voucher</th>
-                    <th className="p-3">Date</th>
+                    <th className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                        className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Click to toggle sorting (Latest on Top vs Oldest on Top)"
+                      >
+                        <span>Date</span>
+                        <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                          {sortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                        </span>
+                      </button>
+                    </th>
                     <th className="p-3">Customer</th>
                     <th className="p-3">Payment Mode</th>
                     <th className="p-3 text-right">Bill Total</th>
@@ -1533,14 +1564,14 @@ export const Reports: React.FC<ReportsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredTxs.filter((t) => t.type === 'SALE' || t.type === 'CREDIT_NOTE').length === 0 ? (
+                  {displayFilteredTxs.filter((t) => t.type === 'SALE' || t.type === 'CREDIT_NOTE').length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
                         No sales vouchers recorded in this period.
                       </td>
                     </tr>
                   ) : (
-                    filteredTxs.filter((t) => t.type === 'SALE' || t.type === 'CREDIT_NOTE').map((tx) => (
+                    displayFilteredTxs.filter((t) => t.type === 'SALE' || t.type === 'CREDIT_NOTE').map((tx) => (
                       <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 font-mono font-bold text-blue-600">{tx.voucherNumber}</td>
                         <td className="p-3 text-slate-500 whitespace-nowrap">{formatDate(tx.date)}</td>
@@ -1600,7 +1631,19 @@ export const Reports: React.FC<ReportsProps> = ({
                 <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3">Bill No</th>
-                    <th className="p-3">Date</th>
+                    <th className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                        className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Click to toggle sorting (Latest on Top vs Oldest on Top)"
+                      >
+                        <span>Date</span>
+                        <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                          {sortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                        </span>
+                      </button>
+                    </th>
                     <th className="p-3">Supplier</th>
                     <th className="p-3">Mode</th>
                     <th className="p-3 text-right">Amount</th>
@@ -1610,14 +1653,14 @@ export const Reports: React.FC<ReportsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredTxs.filter((t) => t.type === 'PURCHASE' || t.type === 'DEBIT_NOTE').length === 0 ? (
+                  {displayFilteredTxs.filter((t) => t.type === 'PURCHASE' || t.type === 'DEBIT_NOTE').length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
                         No purchase bills recorded in this period.
                       </td>
                     </tr>
                   ) : (
-                    filteredTxs.filter((t) => t.type === 'PURCHASE' || t.type === 'DEBIT_NOTE').map((tx) => (
+                    displayFilteredTxs.filter((t) => t.type === 'PURCHASE' || t.type === 'DEBIT_NOTE').map((tx) => (
                       <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 font-mono font-bold text-purple-600">{tx.voucherNumber}</td>
                         <td className="p-3 text-slate-500 whitespace-nowrap">{formatDate(tx.date)}</td>

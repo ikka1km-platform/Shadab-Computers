@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Calendar, 
   ArrowDownLeft, 
@@ -18,7 +18,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Transaction, Party, BusinessProfile, Firm, BankAccount } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, compareTransactionsDesc, compareTransactionsAsc } from '../../utils/formatters';
 import { generateReceiptVoucherPDF } from '../../utils/pdfGenerator';
 import { ShareVoucherModal } from '../transactions/ShareVoucherModal';
 import { AttachmentViewerModal } from '../common/AttachmentViewerModal';
@@ -117,6 +117,12 @@ export const Daybook: React.FC<DaybookProps> = ({
 
     return matchesDate && matchesMode && matchesSearch && matchesFirm;
   });
+
+  const [sortOrder, setSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
+
+  const sortedFilteredTxs = useMemo(() => {
+    return [...filteredTxs].sort(sortOrder === 'NEWEST_FIRST' ? compareTransactionsDesc : compareTransactionsAsc);
+  }, [filteredTxs, sortOrder]);
 
   const totalIn = filteredTxs
     .reduce((sum, tx) => {
@@ -293,7 +299,19 @@ export const Daybook: React.FC<DaybookProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
               <tr>
-                <th className="p-3">Time / Date</th>
+                <th className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                    className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                    title="Click to toggle sorting (Latest on Top vs Oldest on Top)"
+                  >
+                    <span>Time / Date</span>
+                    <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                      {sortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                    </span>
+                  </button>
+                </th>
                 <th className="p-3">Voucher #</th>
                 <th className="p-3">Firm / Unit</th>
                 <th className="p-3">Type & Status</th>
@@ -305,14 +323,14 @@ export const Daybook: React.FC<DaybookProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {filteredTxs.length === 0 ? (
+              {sortedFilteredTxs.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="p-8 text-center text-slate-400">
                     No transactions recorded for this selection.
                   </td>
                 </tr>
               ) : (
-                filteredTxs.map((tx) => {
+                sortedFilteredTxs.map((tx) => {
                   const isPositive = tx.type === 'PAYMENT_IN' || tx.type === 'SALE';
                   const party = parties.find((p) => p.id === tx.partyId);
                   const effectiveIn = tx.type === 'PAYMENT_IN' 

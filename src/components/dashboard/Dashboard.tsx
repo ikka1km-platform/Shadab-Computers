@@ -9,7 +9,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Party, Transaction, BusinessProfile, Firm, BankAccount, UserRole } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, compareTransactionsDesc } from '../../utils/formatters';
 import { canViewSupplierFinances, canViewCashTally } from '../../utils/userSession';
 
 interface DashboardProps {
@@ -107,7 +107,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   });
 
   const recentTransactions = [...firmTxs]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(compareTransactionsDesc)
     .slice(0, 5);
 
   const topDebtors = parties

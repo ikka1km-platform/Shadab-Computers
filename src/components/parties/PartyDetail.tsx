@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Phone, 
@@ -15,7 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Party, Transaction, BusinessProfile, BankAccount, Firm } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, compareTransactionsAsc, compareTransactionsDesc } from '../../utils/formatters';
 import { generatePartyStatementPDF, generateReceiptVoucherPDF } from '../../utils/pdfGenerator';
 import { PaymentReminderModal } from '../reminders/PaymentReminderModal';
 import { ShareVoucherModal } from '../transactions/ShareVoucherModal';
@@ -53,10 +53,14 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
   const [voucherToShare, setVoucherToShare] = useState<Transaction | null>(null);
   const [txForThermal, setTxForThermal] = useState<Transaction | null>(null);
   const [viewingAttachments, setViewingAttachments] = useState<{ attachments: string[]; title: string } | null>(null);
+  const [sortOrder, setSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
 
-  const partyTxs = transactions
-    .filter((tx) => tx.partyId === party.id)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Sort chronological (oldest-to-newest) to compute mathematically accurate running balance
+  const chronologicalTxs = useMemo(() => {
+    return transactions
+      .filter((tx) => tx.partyId === party.id)
+      .sort(compareTransactionsAsc);
+  }, [transactions, party.id]);
 
   const isReceivable = party.currentBalance > 0;
   const isPayable = party.currentBalance < 0;
@@ -75,44 +79,50 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
   };
 
   const handleDownloadPDF = () => {
-    generatePartyStatementPDF(party, partyTxs, profile);
+    generatePartyStatementPDF(party, chronologicalTxs, profile);
   };
 
-  let running = party.openingBalance;
-  const ledgerRows = partyTxs.map((tx) => {
-    let debit = 0;
-    let credit = 0;
-    const paidOnSpot = tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0);
+  const ledgerRows = useMemo(() => {
+    let running = party.openingBalance;
+    return chronologicalTxs.map((tx) => {
+      let debit = 0;
+      let credit = 0;
+      const paidOnSpot = tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0);
 
-    if (party.partyType === 'CUSTOMER') {
-      if (tx.type === 'SALE') {
-        const netDue = tx.amount - paidOnSpot;
-        debit = tx.amount;
-        credit = paidOnSpot;
-        running += netDue;
-      } else if (tx.type === 'PAYMENT_IN') {
-        credit = tx.amount;
-        running -= tx.amount;
+      if (party.partyType === 'CUSTOMER') {
+        if (tx.type === 'SALE') {
+          const netDue = tx.amount - paidOnSpot;
+          debit = tx.amount;
+          credit = paidOnSpot;
+          running += netDue;
+        } else if (tx.type === 'PAYMENT_IN') {
+          credit = tx.amount;
+          running -= tx.amount;
+        }
+      } else {
+        if (tx.type === 'PURCHASE') {
+          const netDue = tx.amount - paidOnSpot;
+          credit = tx.amount;
+          debit = paidOnSpot;
+          running -= netDue;
+        } else if (tx.type === 'PAYMENT_OUT') {
+          debit = tx.amount;
+          running += tx.amount;
+        }
       }
-    } else {
-      if (tx.type === 'PURCHASE') {
-        const netDue = tx.amount - paidOnSpot;
-        credit = tx.amount;
-        debit = paidOnSpot;
-        running -= netDue;
-      } else if (tx.type === 'PAYMENT_OUT') {
-        debit = tx.amount;
-        running += tx.amount;
-      }
-    }
 
-    return {
-      tx,
-      debit,
-      credit,
-      runningBalance: running,
-    };
-  });
+      return {
+        tx,
+        debit,
+        credit,
+        runningBalance: running,
+      };
+    });
+  }, [chronologicalTxs, party.openingBalance, party.partyType]);
+
+  const displayLedgerRows = useMemo(() => {
+    return sortOrder === 'NEWEST_FIRST' ? [...ledgerRows].reverse() : ledgerRows;
+  }, [ledgerRows, sortOrder]);
 
   return (
     <div className="space-y-5 pb-16 md:pb-6">
@@ -287,7 +297,19 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
               <tr>
-                <th className="p-3">Date</th>
+                <th className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                    className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                    title="Click to toggle sorting (Latest on Top vs Oldest on Top)"
+                  >
+                    <span>Date</span>
+                    <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                      {sortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                    </span>
+                  </button>
+                </th>
                 <th className="p-3">Voucher Type & Details</th>
                 <th className="p-3">Mode</th>
                 <th className="p-3 text-right">Debit (+)</th>
@@ -297,23 +319,30 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              <tr className="bg-slate-50/50">
-                <td className="p-3 text-slate-400">{formatDate(party.createdAt)}</td>
-                <td className="p-3 font-semibold text-slate-800">Opening Balance</td>
-                <td className="p-3 text-slate-400">-</td>
-                <td className="p-3 text-right text-emerald-600 font-semibold">
-                  {party.openingBalance > 0 ? formatCurrency(party.openingBalance) : '-'}
-                </td>
-                <td className="p-3 text-right text-rose-600 font-semibold">
-                  {party.openingBalance < 0 ? formatCurrency(Math.abs(party.openingBalance)) : '-'}
-                </td>
-                <td className="p-3 text-right font-bold text-slate-900">
-                  {formatCurrency(party.openingBalance)}
-                </td>
-                <td className="p-3 text-center text-slate-300">-</td>
-              </tr>
+              {sortOrder === 'OLDEST_FIRST' && (
+                <tr className="bg-slate-50/70">
+                  <td className="p-3 text-slate-400">{formatDate(party.createdAt)}</td>
+                  <td className="p-3 font-semibold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <span>Opening Balance</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-sm">Baseline</span>
+                    </span>
+                  </td>
+                  <td className="p-3 text-slate-400">-</td>
+                  <td className="p-3 text-right text-emerald-600 font-semibold">
+                    {party.openingBalance > 0 ? formatCurrency(party.openingBalance) : '-'}
+                  </td>
+                  <td className="p-3 text-right text-rose-600 font-semibold">
+                    {party.openingBalance < 0 ? formatCurrency(Math.abs(party.openingBalance)) : '-'}
+                  </td>
+                  <td className="p-3 text-right font-bold text-slate-900">
+                    {formatCurrency(party.openingBalance)}
+                  </td>
+                  <td className="p-3 text-center text-slate-300">-</td>
+                </tr>
+              )}
 
-              {ledgerRows.map((row) => (
+              {displayLedgerRows.map((row) => (
                 <tr key={row.tx.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-3 text-slate-500 whitespace-nowrap">{formatDate(row.tx.date)}</td>
                   <td className="p-3">
@@ -416,6 +445,29 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
                   </td>
                 </tr>
               ))}
+
+              {sortOrder === 'NEWEST_FIRST' && (
+                <tr className="bg-slate-50/70">
+                  <td className="p-3 text-slate-400">{formatDate(party.createdAt)}</td>
+                  <td className="p-3 font-semibold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <span>Opening Balance</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-sm">Baseline</span>
+                    </span>
+                  </td>
+                  <td className="p-3 text-slate-400">-</td>
+                  <td className="p-3 text-right text-emerald-600 font-semibold">
+                    {party.openingBalance > 0 ? formatCurrency(party.openingBalance) : '-'}
+                  </td>
+                  <td className="p-3 text-right text-rose-600 font-semibold">
+                    {party.openingBalance < 0 ? formatCurrency(Math.abs(party.openingBalance)) : '-'}
+                  </td>
+                  <td className="p-3 text-right font-bold text-slate-900">
+                    {formatCurrency(party.openingBalance)}
+                  </td>
+                  <td className="p-3 text-center text-slate-300">-</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

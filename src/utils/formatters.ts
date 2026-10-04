@@ -107,3 +107,41 @@ export function numberToWordsINR(amount: number): string {
 
   return isNegative ? `Minus ${result}` : result;
 }
+
+/**
+ * Compares two transactions in descending order (LATEST entries on top, older on bottom).
+ */
+export function compareTransactionsDesc(
+  a: { date?: string; createdAt?: string; id?: number; voucherNumber?: string },
+  b: { date?: string; createdAt?: string; id?: number; voucherNumber?: string }
+): number {
+  const dateA = a.date ? new Date(a.date.replace(' ', 'T')).getTime() : 0;
+  const dateB = b.date ? new Date(b.date.replace(' ', 'T')).getTime() : 0;
+  if (!isNaN(dateA) && !isNaN(dateB) && dateB !== dateA) {
+    return dateB - dateA;
+  }
+
+  const createdA = a.createdAt ? new Date(a.createdAt.replace(' ', 'T')).getTime() : 0;
+  const createdB = b.createdAt ? new Date(b.createdAt.replace(' ', 'T')).getTime() : 0;
+  if (!isNaN(createdA) && !isNaN(createdB) && createdB !== createdA) {
+    return createdB - createdA;
+  }
+
+  const idA = a.id || 0;
+  const idB = b.id || 0;
+  if (idB !== idA) {
+    return idB - idA;
+  }
+
+  return (b.voucherNumber || '').localeCompare(a.voucherNumber || '');
+}
+
+/**
+ * Compares two transactions in ascending order (OLDEST entries on top, newer on bottom).
+ */
+export function compareTransactionsAsc(
+  a: { date?: string; createdAt?: string; id?: number; voucherNumber?: string },
+  b: { date?: string; createdAt?: string; id?: number; voucherNumber?: string }
+): number {
+  return -compareTransactionsDesc(a, b);
+}

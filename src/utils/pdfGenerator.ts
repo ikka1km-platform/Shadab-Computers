@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Party, Transaction, BusinessProfile, DenominationBreakdown } from '../types';
-import { formatCurrency, formatDate, numberToWordsINR } from './formatters';
+import { formatCurrency, formatDate, numberToWordsINR, compareTransactionsAsc } from './formatters';
 
 export function generateDailyDenominationPDF(
   selectedDate: string,
@@ -198,33 +198,36 @@ export function generatePartyStatementPDF(
   doc.text(`Status: ${balanceLabel}`, 130, 67);
 
   let running = party.openingBalance;
-  const rows = [
-    [
-      formatDate(party.createdAt),
-      'Opening Balance',
-      '-',
-      party.openingBalance > 0 ? formatCurrency(party.openingBalance) : '-',
-      party.openingBalance < 0 ? formatCurrency(Math.abs(party.openingBalance)) : '-',
-      formatCurrency(running),
-    ],
-  ];
+  const txRows: any[][] = [];
 
-  transactions.forEach((tx) => {
+  // Sort chronological for mathematically accurate running balance calculation
+  const chronologicalTxs = [...transactions].sort(compareTransactionsAsc);
+
+  chronologicalTxs.forEach((tx) => {
     let debit = '-';
     let credit = '-';
+    const paidOnSpot = tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0);
 
     if (party.partyType === 'CUSTOMER') {
       if (tx.type === 'SALE') {
+        const netDue = tx.amount - paidOnSpot;
         debit = formatCurrency(tx.amount);
-        running += tx.amount;
+        if (paidOnSpot > 0) {
+          credit = formatCurrency(paidOnSpot);
+        }
+        running += netDue;
       } else if (tx.type === 'PAYMENT_IN') {
         credit = formatCurrency(tx.amount);
         running -= tx.amount;
       }
     } else {
       if (tx.type === 'PURCHASE') {
+        const netDue = tx.amount - paidOnSpot;
         credit = formatCurrency(tx.amount);
-        running -= tx.amount;
+        if (paidOnSpot > 0) {
+          debit = formatCurrency(paidOnSpot);
+        }
+        running -= netDue;
       } else if (tx.type === 'PAYMENT_OUT') {
         debit = formatCurrency(tx.amount);
         running += tx.amount;
@@ -235,7 +238,7 @@ export function generatePartyStatementPDF(
       ? `Split (Cash: ₹${tx.splitPayment.cashAmount} / Online: ₹${tx.splitPayment.onlineAmount})`
       : tx.paymentMode || '-';
 
-    rows.push([
+    txRows.push([
       formatDate(tx.date),
       `${tx.voucherNumber} (${tx.type.replace('_', ' ')})`,
       modeText,
@@ -244,6 +247,18 @@ export function generatePartyStatementPDF(
       formatCurrency(running),
     ]);
   });
+
+  const openingRow = [
+    formatDate(party.createdAt),
+    'Opening Balance',
+    '-',
+    party.openingBalance > 0 ? formatCurrency(party.openingBalance) : '-',
+    party.openingBalance < 0 ? formatCurrency(Math.abs(party.openingBalance)) : '-',
+    formatCurrency(party.openingBalance),
+  ];
+
+  // Latest entries on top, older entries below, baseline opening balance at the bottom
+  const rows = [...txRows.reverse(), openingRow];
 
   autoTable(doc, {
     startY: 73,
