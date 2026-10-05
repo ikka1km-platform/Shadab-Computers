@@ -133,8 +133,8 @@ const OPTIONS_STORAGE_KEY = 'vyapar_printer_options';
 
 export const DEFAULT_PRINTER_OPTIONS: import('../types').PrinterGlobalOptions = {
   defaultPaperWidth: '58mm',
-  autoCut: true,
-  feedLines: 3,
+  autoCut: false,
+  feedLines: 1,
   cashDrawerKick: false,
   printLogo: true,
   printQr: true,
@@ -144,7 +144,13 @@ export const getPrinterOptions = (): import('../types').PrinterGlobalOptions => 
   try {
     const raw = localStorage.getItem(OPTIONS_STORAGE_KEY);
     if (!raw) return DEFAULT_PRINTER_OPTIONS;
-    return { ...DEFAULT_PRINTER_OPTIONS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_PRINTER_OPTIONS,
+      ...parsed,
+      // If user had legacy 3 feedlines or autoCut on 58mm, default to compact values
+      feedLines: typeof parsed.feedLines === 'number' ? parsed.feedLines : 1,
+    };
   } catch (e) {
     return DEFAULT_PRINTER_OPTIONS;
   }

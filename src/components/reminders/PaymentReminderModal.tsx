@@ -12,6 +12,7 @@ import { Party, BusinessProfile, BankAccount, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { Capacitor } from '@capacitor/core';
 import { NativeShare } from '../../utils/imageGenerator';
+import { getEffectiveReminderTemplates, renderReminderTemplate } from '../../utils/reminderTemplates';
 
 interface PaymentReminderModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface PaymentReminderModalProps {
   profile: BusinessProfile;
   bankAccounts?: BankAccount[];
   firms?: Firm[];
+  onOpenSettings?: () => void;
 }
 
 export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
@@ -29,6 +31,7 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
   profile,
   bankAccounts = [],
   firms = [],
+  onOpenSettings,
 }) => {
   const [tone, setTone] = useState<'polite' | 'standard' | 'urgent'>('polite');
   const [copied, setCopied] = useState(false);
@@ -132,32 +135,28 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
     ? `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeFirmName)}&cu=INR`
     : '';
 
-  // Tone message templates
-  let reminderIntro = '';
-  if (tone === 'polite') {
-    reminderIntro = `Dear ${party.name}, gentle greeting from ${activeFirmName}. We hope you are doing well. This is a friendly reminder that an outstanding payment of ${formatCurrency(dueAmount)} is pending on your account.`;
-  } else if (tone === 'standard') {
-    reminderIntro = `Dear ${party.name}, payment reminder for your pending balance of ${formatCurrency(dueAmount)} with ${activeFirmName}. Please arrange to clear the dues at your earliest convenience.`;
-  } else {
-    reminderIntro = `URGENT PAYMENT REMINDER: Dear ${party.name}, your payment of ${formatCurrency(dueAmount)} with ${activeFirmName} is overdue. Kindly settle this balance today to avoid disruption in services.`;
-  }
+  // Templates from Settings
+  const templates = getEffectiveReminderTemplates(profile);
+  const selectedTemplate = tone === 'polite' 
+    ? templates.polite 
+    : tone === 'standard' 
+      ? templates.standard 
+      : templates.urgent;
 
   const bankText = activeBank && !isCashAccount(activeBank)
-    ? `\n*Bank Transfer Details:*\nBank: ${activeBank.bankName}\nA/C Name: ${activeBank.accountName}\nA/C No: ${activeBank.accountNumber}${activeBank.ifscCode ? `\nIFSC: ${activeBank.ifscCode}` : ''}`
+    ? `*Bank Transfer Details:*\n* Bank: ${activeBank.bankName}\n* A/C Name: ${activeBank.accountName}\n* A/C No: ${activeBank.accountNumber}${activeBank.ifscCode ? `\n* IFSC: ${activeBank.ifscCode}` : ''}`
     : '';
 
-  const fullMessage = 
-`${reminderIntro}
-
-*Outstanding Due Amount:* ${formatCurrency(dueAmount)}
-----------------------------------------
-${activeUpiId ? `💳 *Pay via UPI:* ${activeUpiId}\n📲 *Tap to Pay with UPI (GPay/PhonePe):* ${upiPayLink}\n_(Tap link & enter the amount you wish to pay)_\n` : ''}${bankText}
-----------------------------------------
-If you have already made the payment, please disregard this reminder.
-
-Regards,
-*${activeFirmName}*
-${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}` : ''}`;
+  const fullMessage = renderReminderTemplate(selectedTemplate, {
+    partyName: party.name,
+    amount: formatCurrency(dueAmount),
+    firmName: activeFirmName,
+    serviceName: isAmzera ? 'Krishi Sewa Kendra' : 'Jio',
+    upiId: activeUpiId,
+    upiLink: upiPayLink,
+    bankDetails: bankText,
+    phone: partyFirm?.phone || profile.phone,
+  });
 
   const handleShareWhatsApp = () => {
     const phoneClean = party.phone?.replace(/[^0-9]/g, '');
@@ -333,13 +332,28 @@ ${partyFirm?.phone || profile.phone ? `Ph: ${partyFirm?.phone || profile.phone}`
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Reminder Text Preview (with Open UPI link)
               </span>
-              <button
-                onClick={handleCopyText}
-                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Copied!' : 'Copy'}</span>
-              </button>
+              <div className="flex items-center gap-2.5">
+                {onOpenSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenSettings();
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer hover:underline"
+                    title="Customize permanent reminder messages in Settings"
+                  >
+                    ⚙ Edit in Settings
+                  </button>
+                )}
+                <button
+                  onClick={handleCopyText}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
             </div>
             <pre className="text-xs text-slate-700 font-sans whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200">
               {fullMessage}

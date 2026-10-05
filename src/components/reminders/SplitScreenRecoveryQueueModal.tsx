@@ -19,6 +19,7 @@ import { Party, Firm, BankAccount, BusinessProfile, ReminderRule } from '../../t
 import { formatCurrency } from '../../utils/formatters';
 import { isOtherAgentAccount } from '../../utils/pdfDebtorsParser';
 import { db } from '../../db/db';
+import { getEffectiveReminderTemplates, renderReminderTemplate } from '../../utils/reminderTemplates';
 
 interface SplitScreenRecoveryQueueModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ interface SplitScreenRecoveryQueueModalProps {
   bankAccounts?: BankAccount[];
   profile?: BusinessProfile;
   onUpdateParty?: (updated: Party) => void;
+  onOpenSettings?: () => void;
 }
 
 const DAYS_NAME = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -40,6 +42,7 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
   bankAccounts = [],
   profile,
   onUpdateParty,
+  onOpenSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<'TODAY_DUE' | 'ALL_PENDING' | 'AMZERA' | 'RAJGARH'>('TODAY_DUE');
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,26 +212,24 @@ export const SplitScreenRecoveryQueueModal: React.FC<SplitScreenRecoveryQueueMod
     // Clickable UPI link with OPEN AMOUNT (omitting &am= so payer can pay partial or advance freely)
     const upiPayLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(firmName)}&cu=INR`;
 
+    const templates = getEffectiveReminderTemplates(profile);
     const isRealBank = firmBank && !isCashAccount(firmBank);
     const bankDetailsText = isRealBank
-      ? `\n🏦 *Bank Transfer Details:*\n* Bank: ${firmBank.bankName}\n* A/C Name: ${firmBank.accountName}\n* A/C No: ${firmBank.accountNumber}${firmBank.ifscCode ? `\n* IFSC: ${firmBank.ifscCode}` : ''}`
+      ? `🏦 *Bank Transfer Details:*\n* Bank: ${firmBank.bankName}\n* A/C Name: ${firmBank.accountName}\n* A/C No: ${firmBank.accountNumber}${firmBank.ifscCode ? `\n* IFSC: ${firmBank.ifscCode}` : ''}`
       : '';
 
     const serviceName = isAmzera ? 'Krishi Sewa Kendra' : 'Jio';
 
-    const text = 
-`Namaste *${party.name}*,
-
-Aapka *${serviceName}* me kul baaki balance *${formatCurrency(dueAmount)}* hai.
-Kripya aaj payment transfer karwaye:
-
-📲 *UPI ID:* \`${activeUpiId}\`
-🔗 *Direct Pay Link (Tap to Pay):*
-${upiPayLink}
-${bankDetailsText}
-
-*Note:* Payment karne ke baad screenshot share karein.
-Dhanyawad!`;
+    const text = renderReminderTemplate(templates.recoveryQueue, {
+      partyName: party.name,
+      amount: formatCurrency(dueAmount),
+      firmName: firmName,
+      serviceName: serviceName,
+      upiId: activeUpiId,
+      upiLink: upiPayLink,
+      bankDetails: bankDetailsText,
+      phone: assignedFirm?.phone || profile?.phone,
+    });
 
     return { text, phone: party.phone || '' };
   };
@@ -332,12 +333,27 @@ Dhanyawad!`;
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-          >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+                className="px-2 py-1 text-[11px] font-bold text-emerald-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                title="Edit WhatsApp Queue Message Template in Settings"
+              >
+                <span>⚙ Templates</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Filter Tabs & Search Bar */}

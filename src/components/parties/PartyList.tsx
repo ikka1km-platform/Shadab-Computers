@@ -33,6 +33,7 @@ interface PartyListProps {
   onDeleteParty?: (id: number) => Promise<void> | void;
   onOpenDailyPdfSync?: () => void;
   onOpenRecoveryQueue?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const PartyList: React.FC<PartyListProps> = ({
@@ -48,6 +49,7 @@ export const PartyList: React.FC<PartyListProps> = ({
   onDeleteParty,
   onOpenDailyPdfSync,
   onOpenRecoveryQueue,
+  onOpenSettings,
 }) => {
   const isSupplierFinancesAllowed = canViewSupplierFinances(currentRole);
   const [filterType, setFilterType] = useState<string>(
@@ -498,6 +500,7 @@ export const PartyList: React.FC<PartyListProps> = ({
           profile={profile}
           bankAccounts={bankAccounts}
           firms={firms}
+          onOpenSettings={onOpenSettings}
         />
       )}
     </div>

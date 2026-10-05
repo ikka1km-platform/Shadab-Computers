@@ -92,9 +92,10 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
     setStatusMsg(null);
 
     try {
+      const is58mm = paperWidth === '58mm';
       const rawEscPos = buildTransactionEscPos(transaction, party, profile, paperWidth, {
-        autoCut: options.autoCut,
-        feedLines: options.feedLines,
+        autoCut: !is58mm && options.autoCut,
+        feedLines: is58mm ? Math.min(options.feedLines ?? 1, 1) : options.feedLines,
         cashDrawerKick: options.cashDrawerKick,
       });
 

@@ -97,9 +97,15 @@ export const App: React.FC = () => {
 
   // Settings & New Company Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'invoice' | 'reminders' | 'tax' | 'security' | 'backup'>('profile');
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   const [isDailyDebtorsPdfOpen, setIsDailyDebtorsPdfOpen] = useState(false);
   const [isRecoveryQueueOpen, setIsRecoveryQueueOpen] = useState(false);
+
+  const handleOpenSettingsWithTab = (tab: 'profile' | 'invoice' | 'reminders' | 'tax' | 'security' | 'backup' = 'profile') => {
+    setSettingsInitialTab(tab);
+    setIsSettingsOpen(true);
+  };
 
   // Cloud Sync & Conflict State
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
@@ -966,6 +972,7 @@ export const App: React.FC = () => {
               onOpenTxModal={(t, pId) => handleOpenAddTx(t, pId || selectedParty.id)}
               onEditTx={handleOpenEditTx}
               onDeleteTx={handleDeleteTx}
+              onOpenSettings={() => handleOpenSettingsWithTab('reminders')}
             />
           ) : activeTab === 'dashboard' ? (
             <Dashboard
@@ -1004,6 +1011,7 @@ export const App: React.FC = () => {
               onDeleteParty={handleDeleteParty}
               onOpenDailyPdfSync={() => setIsDailyDebtorsPdfOpen(true)}
               onOpenRecoveryQueue={() => setIsRecoveryQueueOpen(true)}
+              onOpenSettings={() => handleOpenSettingsWithTab('reminders')}
             />
           ) : activeTab === 'cash_tally' ? (
             <DenominationReport
@@ -1175,6 +1183,7 @@ export const App: React.FC = () => {
         onResetDemo={handleResetDemo}
         onOpenNewCompany={() => setIsNewCompanyModalOpen(true)}
         onOpenPrinterSettings={() => setIsPrinterManagerOpen(true)}
+        initialTab={settingsInitialTab}
       />
 
       {/* Accounting Conflict Review Modal */}
@@ -1240,6 +1249,7 @@ export const App: React.FC = () => {
           bankAccounts={bankAccounts}
           profile={profile}
           onUpdateParty={(updated) => handleSaveParty(updated)}
+          onOpenSettings={() => handleOpenSettingsWithTab('reminders')}
         />
       )}
 

@@ -50,11 +50,11 @@ export class EscPosBuilder {
     return this;
   }
 
-  center(str: string, doubleSize = false): this {
+  center(str: string, bold = false): this {
     this.raw(ESC_POS_COMMANDS.ALIGN_CENTER);
-    if (doubleSize) this.raw(ESC_POS_COMMANDS.DOUBLE_HEIGHT_ON);
+    if (bold) this.raw(ESC_POS_COMMANDS.BOLD_ON);
     this.line(str);
-    if (doubleSize) this.raw(ESC_POS_COMMANDS.NORMAL_SIZE);
+    if (bold) this.raw(ESC_POS_COMMANDS.BOLD_OFF);
     this.raw(ESC_POS_COMMANDS.ALIGN_LEFT);
     return this;
   }
@@ -77,7 +77,7 @@ export class EscPosBuilder {
     return this;
   }
 
-  feedLines(count: number = 3): this {
+  feedLines(count: number = 1): this {
     for (let i = 0; i < count; i++) {
       this.chunks.push(ESC_POS_COMMANDS.LINE_FEED);
     }
@@ -89,7 +89,7 @@ export class EscPosBuilder {
     return this;
   }
 
-  feedAndCut(feedCount: number = 3, autoCut: boolean = true): this {
+  feedAndCut(feedCount: number = 1, autoCut: boolean = false): this {
     this.feedLines(feedCount);
     if (autoCut) {
       this.raw(ESC_POS_COMMANDS.CUT_PAPER);
@@ -161,12 +161,10 @@ export const buildTransactionEscPos = (
 
   builder.divider('-');
 
-  // 2. Receipt / Invoice Header
+  // 2. Receipt / Invoice Header (Crisp normal-proportional bold font, no stretching)
   builder.raw(ESC_POS_COMMANDS.ALIGN_CENTER);
   builder.raw(ESC_POS_COMMANDS.BOLD_ON);
-  builder.raw(ESC_POS_COMMANDS.DOUBLE_HEIGHT_ON);
   builder.line(`*** ${title} ***`);
-  builder.raw(ESC_POS_COMMANDS.NORMAL_SIZE);
   builder.raw(ESC_POS_COMMANDS.BOLD_OFF);
   builder.raw(ESC_POS_COMMANDS.ALIGN_LEFT);
 
@@ -185,16 +183,7 @@ export const buildTransactionEscPos = (
 
   // 3. Special Format for PAYMENT_IN (Payment Receipt)
   if (isPaymentIn) {
-    builder.raw(ESC_POS_COMMANDS.ALIGN_CENTER);
-    builder.raw(ESC_POS_COMMANDS.BOLD_ON);
-    builder.raw(ESC_POS_COMMANDS.DOUBLE_HEIGHT_ON);
-    builder.line(`RECEIVED: Rs. ${transaction.amount.toLocaleString('en-IN')}`);
-    builder.raw(ESC_POS_COMMANDS.NORMAL_SIZE);
-    builder.raw(ESC_POS_COMMANDS.BOLD_OFF);
-    builder.raw(ESC_POS_COMMANDS.ALIGN_LEFT);
-
-    builder.divider('-');
-    builder.twoColumn('Amount Received:', `Rs. ${transaction.amount.toFixed(2)}`, true);
+    builder.twoColumn('Amount Received:', `Rs. ${transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, true);
     builder.twoColumn('Payment Mode:', transaction.paymentMode);
 
     if (transaction.paymentMode === 'SPLIT' && transaction.splitPayment) {
@@ -248,7 +237,15 @@ export const buildTransactionEscPos = (
 
   builder.divider('-');
   builder.center('Thank you for your business!');
-  builder.feedAndCut(options?.feedLines !== undefined ? options.feedLines : 1, options?.autoCut !== false);
+
+  // On 58mm manual-tear printers, auto-cut commands (GS V) cause printer firmware to feed 50-80mm of blank paper.
+  // Suppress cut and use maximum 1 line feed so paper tears cleanly right below the text without waste.
+  const is58mm = paperWidth === '58mm';
+  const feed = is58mm 
+    ? (options?.feedLines !== undefined ? Math.min(options.feedLines, 1) : 1) 
+    : (options?.feedLines ?? 2);
+  const shouldCut = !is58mm && (options?.autoCut ?? false);
+  builder.feedAndCut(feed, shouldCut);
   return builder.build();
 };
 

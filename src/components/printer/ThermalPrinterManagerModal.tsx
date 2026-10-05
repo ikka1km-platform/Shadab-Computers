@@ -1093,10 +1093,11 @@ export const ThermalPrinterManagerModal: React.FC<ThermalPrinterManagerModalProp
                     onChange={(e) => updateOptions({ feedLines: Number(e.target.value) })}
                     className="px-3 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-slate-50 outline-none"
                   >
+                    <option value={0}>0 Lines (Zero Blank Paper)</option>
+                    <option value={1}>1 Line (Compact - Recommended)</option>
                     <option value={2}>2 Lines</option>
-                    <option value={3}>3 Lines (Standard)</option>
+                    <option value={3}>3 Lines</option>
                     <option value={4}>4 Lines (Longer)</option>
-                    <option value={5}>5 Lines</option>
                   </select>
                 </div>
 

@@ -183,6 +183,14 @@ export interface BusinessProfile {
   autoDownloadOnDailyBackup?: boolean;
   firmId?: string;
   firmCloudAccount?: FirmCloudAccount;
+  reminderTemplates?: ReminderTemplates;
+}
+
+export interface ReminderTemplates {
+  polite?: string;
+  standard?: string;
+  urgent?: string;
+  recoveryQueue?: string;
 }
 
 export type PrinterConnectionType = 'bluetooth' | 'usb' | 'wifi';

@@ -34,6 +34,7 @@ interface PartyDetailProps {
   onOpenTxModal: (type: any, partyId?: number) => void;
   onEditTx?: (tx: Transaction) => void;
   onDeleteTx?: (txId: number) => Promise<void> | void;
+  onOpenSettings?: () => void;
 }
 
 export const PartyDetail: React.FC<PartyDetailProps> = ({
@@ -48,6 +49,7 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
   onOpenTxModal,
   onEditTx,
   onDeleteTx,
+  onOpenSettings,
 }) => {
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [voucherToShare, setVoucherToShare] = useState<Transaction | null>(null);
@@ -481,6 +483,7 @@ export const PartyDetail: React.FC<PartyDetailProps> = ({
           profile={profile}
           bankAccounts={bankAccounts}
           firms={firms}
+          onOpenSettings={onOpenSettings}
         />
       )}
 

@@ -41,8 +41,15 @@ import {
   Settings2,
   RotateCcw,
   ArrowLeft,
+  MessageCircle,
 } from 'lucide-react';
 import { BusinessProfile, FirmCloudAccount } from '../../types';
+import { 
+  getEffectiveReminderTemplates, 
+  saveStoredReminderTemplates, 
+  DEFAULT_REMINDER_TEMPLATES, 
+  renderReminderTemplate 
+} from '../../utils/reminderTemplates';
 import { exportFullBackup, restoreFromBackup, sendBackupToEmail } from '../../utils/backupRestore';
 import { compressImage } from '../../utils/imageCompressor';
 import { connectGoogleDriveAccount, syncFirmCloudVault, validateGoogleClientId, DEFAULT_GOOGLE_CLIENT_ID, disconnectGoogleCloud } from '../../utils/googleDriveSync';
@@ -68,9 +75,10 @@ interface SettingsModalProps {
   onResetDemo: () => Promise<void>;
   onOpenNewCompany?: () => void;
   onOpenPrinterSettings?: () => void;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'profile' | 'invoice' | 'tax' | 'security' | 'backup';
+type SettingsTab = 'profile' | 'invoice' | 'reminders' | 'tax' | 'security' | 'backup';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -80,8 +88,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetDemo,
   onOpenNewCompany,
   onOpenPrinterSettings,
+  initialTab = 'profile',
 }) => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  useEffect(() => {
+    if (initialTab && isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   // Business Profile
   const [businessName, setBusinessName] = useState('');
@@ -100,6 +115,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showBankDetailsOnInvoice, setShowBankDetailsOnInvoice] = useState(true);
   const [showQrOnInvoice, setShowQrOnInvoice] = useState(true);
   const [signatureText, setSignatureText] = useState('Authorized Signatory');
+
+  // Reminder Message Templates
+  const [reminderPolite, setReminderPolite] = useState('');
+  const [reminderStandard, setReminderStandard] = useState('');
+  const [reminderUrgent, setReminderUrgent] = useState('');
+  const [reminderRecoveryQueue, setReminderRecoveryQueue] = useState('');
+  const [reminderSubTab, setReminderSubTab] = useState<'polite' | 'standard' | 'urgent' | 'recoveryQueue'>('polite');
 
   // Tax & UPI
   const [gstin, setGstin] = useState('');
@@ -163,6 +185,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setShowBankDetailsOnInvoice(profile.showBankDetailsOnInvoice !== false);
       setShowQrOnInvoice(profile.showQrOnInvoice !== false);
       setSignatureText(profile.signatureText || 'Authorized Signatory');
+
+      const effReminders = getEffectiveReminderTemplates(profile);
+      setReminderPolite(effReminders.polite);
+      setReminderStandard(effReminders.standard);
+      setReminderUrgent(effReminders.urgent);
+      setReminderRecoveryQueue(effReminders.recoveryQueue);
 
       setGstin(profile.gstin || '');
       setUpiId(profile.upiId || '');
@@ -568,6 +596,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const getCurrentTemplateValue = (): string => {
+    switch (reminderSubTab) {
+      case 'polite':
+        return reminderPolite;
+      case 'standard':
+        return reminderStandard;
+      case 'urgent':
+        return reminderUrgent;
+      case 'recoveryQueue':
+        return reminderRecoveryQueue;
+      default:
+        return reminderPolite;
+    }
+  };
+
+  const setCurrentTemplateValue = (val: string): void => {
+    switch (reminderSubTab) {
+      case 'polite':
+        setReminderPolite(val);
+        break;
+      case 'standard':
+        setReminderStandard(val);
+        break;
+      case 'urgent':
+        setReminderUrgent(val);
+        break;
+      case 'recoveryQueue':
+        setReminderRecoveryQueue(val);
+        break;
+    }
+  };
+
+  const handleInsertPlaceholder = (tag: string): void => {
+    const cur = getCurrentTemplateValue();
+    setCurrentTemplateValue(cur ? `${cur} ${tag}` : tag);
+  };
+
+  const handleResetCurrentTemplate = (): void => {
+    switch (reminderSubTab) {
+      case 'polite':
+        setReminderPolite(DEFAULT_REMINDER_TEMPLATES.polite);
+        break;
+      case 'standard':
+        setReminderStandard(DEFAULT_REMINDER_TEMPLATES.standard);
+        break;
+      case 'urgent':
+        setReminderUrgent(DEFAULT_REMINDER_TEMPLATES.urgent);
+        break;
+      case 'recoveryQueue':
+        setReminderRecoveryQueue(DEFAULT_REMINDER_TEMPLATES.recoveryQueue);
+        break;
+    }
+  };
+
+  const getSamplePreview = (): string => {
+    const templateToPreview = getCurrentTemplateValue();
+    const curFirm = businessName.trim() || profile?.businessName || 'Shadab Computers';
+    const curUpi = upiId.trim() || profile?.upiId || 'eazypay.447KINJ6OP7QYA5@ICICI';
+    const curPhone = phone.trim() || profile?.phone || '9425436186';
+    const upiPayLink = `upi://pay?pa=${encodeURIComponent(curUpi)}&pn=${encodeURIComponent(curFirm)}&cu=INR`;
+    const bankDetails = `🏦 *Bank Transfer Details:*\n* Bank: Icici\n* A/C Name: ${curFirm}\n* A/C No: 406205001812\n* IFSC: ICIC0004062`;
+
+    return renderReminderTemplate(templateToPreview, {
+      partyName: 'TIRLA Priyanshsingh solanki',
+      amount: '₹53,800.00',
+      firmName: curFirm,
+      serviceName: 'Jio',
+      upiId: curUpi,
+      upiLink: upiPayLink,
+      bankDetails: bankDetails,
+      phone: curPhone,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinError(null);
@@ -586,6 +688,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     setLoading(true);
     try {
+      const reminderTemplatesObj = {
+        polite: reminderPolite.trim() || DEFAULT_REMINDER_TEMPLATES.polite,
+        standard: reminderStandard.trim() || DEFAULT_REMINDER_TEMPLATES.standard,
+        urgent: reminderUrgent.trim() || DEFAULT_REMINDER_TEMPLATES.urgent,
+        recoveryQueue: reminderRecoveryQueue.trim() || DEFAULT_REMINDER_TEMPLATES.recoveryQueue,
+      };
+      saveStoredReminderTemplates(reminderTemplatesObj);
+
       await onSaveProfile({
         businessName,
         tagline,
@@ -601,6 +711,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         showBankDetailsOnInvoice,
         showQrOnInvoice,
         signatureText,
+        reminderTemplates: reminderTemplatesObj,
         gstin,
         upiId,
         defaultGstRate,
@@ -655,6 +766,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {[
             { id: 'profile', label: 'Company Profile', icon: Building2 },
             { id: 'invoice', label: 'Invoice & Print', icon: FileText },
+            { id: 'reminders', label: 'WhatsApp & Reminders', icon: MessageCircle },
             { id: 'tax', label: 'GST & UPI', icon: Percent },
             { id: 'security', label: 'PIN Security', icon: Lock },
             { id: 'backup', label: 'Cloud & Backup', icon: Cloud },
@@ -894,6 +1006,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: WHATSAPP & REMINDER TEMPLATES */}
+          {activeTab === 'reminders' && (
+            <div className="space-y-4">
+              <div className="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl">
+                <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                  <MessageCircle className="w-4 h-4 text-emerald-700" />
+                  Pre-set WhatsApp & Udhar Payment Reminder Messages
+                </h4>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Customize the exact messages sent to customers for pending balance reminders and Jio WhatsApp recovery queue. These changes are saved permanently.
+                </p>
+              </div>
+
+              {/* Sub-tabs for the 4 templates */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                {[
+                  { id: 'polite', label: '😊 Polite', desc: 'Reminder Modal' },
+                  { id: 'standard', label: '📋 Standard', desc: 'Reminder Modal' },
+                  { id: 'urgent', label: '⚠️ Urgent', desc: 'Reminder Modal' },
+                  { id: 'recoveryQueue', label: '⚡ WhatsApp Queue', desc: 'Jio / Split-screen' },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setReminderSubTab(st.id as any)}
+                    className={`p-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                      reminderSubTab === st.id
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <div>{st.label}</div>
+                    <div className="text-[9px] font-normal text-slate-400 mt-0.5">{st.desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Placeholder helper chips */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <span className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  Dynamic Placeholders (Click to insert into template):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { tag: '{partyName}', label: 'Party Name' },
+                    { tag: '{amount}', label: 'Due Amount' },
+                    { tag: '{firmName}', label: 'Firm Name' },
+                    { tag: '{serviceName}', label: 'Service (Jio / Krishi)' },
+                    { tag: '{upiId}', label: 'Active UPI ID' },
+                    { tag: '{upiLink}', label: 'Click-to-Pay Link' },
+                    { tag: '{bankDetails}', label: 'Bank Details Block' },
+                    { tag: '{phone}', label: 'Business Phone' },
+                  ].map((chip) => (
+                    <button
+                      key={chip.tag}
+                      type="button"
+                      onClick={() => handleInsertPlaceholder(chip.tag)}
+                      className="px-2 py-1 text-[11px] font-mono bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-slate-700 border border-slate-300 rounded-md transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title={`Insert ${chip.label}`}
+                    >
+                      <span>{chip.tag}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active template editor */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-800">
+                    {reminderSubTab === 'polite' && 'Polite Reminder Message Template'}
+                    {reminderSubTab === 'standard' && 'Standard Reminder Message Template'}
+                    {reminderSubTab === 'urgent' && 'Urgent Reminder Message Template'}
+                    {reminderSubTab === 'recoveryQueue' && 'Jio WhatsApp Recovery Queue Template'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleResetCurrentTemplate}
+                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reset to Default
+                  </button>
+                </div>
+                <textarea
+                  rows={9}
+                  value={getCurrentTemplateValue()}
+                  onChange={(e) => setCurrentTemplateValue(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none leading-relaxed bg-white"
+                  placeholder="Enter reminder template..."
+                />
+              </div>
+
+              {/* Live Preview */}
+              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                  Live Preview with Sample Party (TIRLA Priyanshsingh solanki - ₹53,800.00)
+                </div>
+                <pre className="text-xs text-slate-800 font-sans whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                  {getSamplePreview()}
+                </pre>
               </div>
             </div>
           )}
