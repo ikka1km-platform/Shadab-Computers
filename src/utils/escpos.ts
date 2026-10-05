@@ -1,5 +1,6 @@
 import { Transaction, Party, BusinessProfile } from '../types';
 import { isNativeAndroidApp, NativeBluetoothPrinter } from './nativeBluetoothPrinter';
+import { formatDate } from './formatters';
 
 // Standard ESC/POS Command Byte Sequences
 const ESC = 0x1B;
@@ -148,18 +149,17 @@ export const buildTransactionEscPos = (
     builder.kickDrawer();
   }
 
-  // 1. Business Header
+  // 1. Business Header (printed once)
   builder.raw(ESC_POS_COMMANDS.ALIGN_CENTER);
   builder.raw(ESC_POS_COMMANDS.BOLD_ON);
   builder.line(profile?.businessName?.toUpperCase() || 'VYAPAR PLUS');
   builder.raw(ESC_POS_COMMANDS.BOLD_OFF);
 
-  if (profile?.tagline) builder.line(profile.tagline);
   if (profile?.address) builder.line(profile.address);
   if (profile?.phone) builder.line(`Ph: ${profile.phone}`);
   if (profile?.gstin) builder.line(`GSTIN: ${profile.gstin}`);
 
-  builder.divider('=');
+  builder.divider('-');
 
   // 2. Receipt / Invoice Header
   builder.raw(ESC_POS_COMMANDS.ALIGN_CENTER);
@@ -171,13 +171,14 @@ export const buildTransactionEscPos = (
   builder.raw(ESC_POS_COMMANDS.ALIGN_LEFT);
 
   builder.divider('-');
-  builder.twoColumn(`Voucher: #${transaction.voucherNumber}`, `Date: ${transaction.date}`);
-  builder.twoColumn(`Mode: ${transaction.paymentMode}`, `Firm: ${transaction.firmName || 'Main'}`);
+  builder.line(`Receipt No: #${transaction.voucherNumber}`);
+  builder.line(`Date: ${formatDate(transaction.date)}`);
 
   if (party) {
-    builder.line(`Party: ${party.name}`);
-    if (party.phone) builder.line(`Contact: ${party.phone}`);
-    if (party.gstin) builder.line(`Party GST: ${party.gstin}`);
+    const partyPrefix = isPaymentIn ? 'Received From:' : isEstimate ? 'Party:' : 'Customer:';
+    builder.line(`${partyPrefix} ${party.name}`);
+    if (party.phone) builder.line(`Ph: ${party.phone}`);
+    if (party.gstin) builder.line(`GSTIN: ${party.gstin}`);
   }
 
   builder.divider('-');
@@ -245,11 +246,9 @@ export const buildTransactionEscPos = (
     builder.center(`UPI ID: ${profile.upiId}`);
   }
 
-  builder.divider('=');
-  builder.center(profile?.invoiceFooterNote || 'Thank you for your business!');
-  builder.center('*** Powered by Vyapar Plus ***');
-
-  builder.feedAndCut(options?.feedLines || 3, options?.autoCut !== false);
+  builder.divider('-');
+  builder.center('Thank you for your business!');
+  builder.feedAndCut(options?.feedLines !== undefined ? options.feedLines : 1, options?.autoCut !== false);
   return builder.build();
 };
 

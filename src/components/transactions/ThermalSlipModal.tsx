@@ -75,7 +75,15 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
 
   // Browser print fallback
   const handleBrowserPrint = () => {
-    window.print();
+    if (printRef.current) {
+      printThermalSlipViaBrowser(
+        printRef.current.innerHTML,
+        paperWidth,
+        isPaymentIn ? 'Payment Receipt' : 'Invoice Slip'
+      );
+    } else {
+      window.print();
+    }
   };
 
   // Direct Print via Default Thermal Device (Bluetooth / USB / WiFi)
@@ -273,7 +281,6 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
             {/* Store Header */}
             <div className="text-center pb-2 border-b border-dashed border-black/40 space-y-0.5">
               <div className="font-black text-sm uppercase tracking-wide">{profile.businessName}</div>
-              {profile.tagline && <div className="text-[10px] italic text-black/80">{profile.tagline}</div>}
               {profile.address && <div className="text-[10px]">{profile.address}</div>}
               {profile.phone && <div className="text-[10px]">Ph: {profile.phone}</div>}
               {profile.gstin && <div className="text-[10px] font-bold">GSTIN: {profile.gstin}</div>}
@@ -287,16 +294,12 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
                  isEstimate ? '*** ESTIMATE / KACHHA ***' :
                  (profile.invoiceTitle || 'TAX INVOICE')}
               </div>
-              <div className="flex justify-between font-bold pt-1">
-                <span>Receipt No: #{transaction.voucherNumber}</span>
-                <span>Date: {formatDate(transaction.date)}</span>
-              </div>
-              <div className="flex justify-between text-black/70">
-                <span>Mode: {transaction.paymentMode}</span>
-                <span>Firm: {transaction.firmName || 'Main Firm'}</span>
+              <div className="pt-1 text-left font-bold space-y-0.5">
+                <div>Receipt No: #{transaction.voucherNumber}</div>
+                <div>Date: {formatDate(transaction.date)}</div>
               </div>
               {party && (
-                <div className="pt-1 border-t border-dashed border-black/20">
+                <div className="pt-1 border-t border-dashed border-black/20 text-left">
                   <div className="font-bold">
                     {isPaymentIn ? 'Received From:' : isPaymentOut ? 'Paid To:' : 'Customer:'} {party.name}
                   </div>
@@ -423,19 +426,9 @@ export const ThermalSlipModal: React.FC<ThermalSlipModalProps> = ({
               </div>
             )}
 
-            {/* Authorized Signatory Line */}
-            <div className="pt-3 pb-1 flex justify-between items-end text-[9px]">
-              <div className="italic">Customer Ack.</div>
-              <div className="text-right">
-                <div className="h-6 border-b border-dotted border-black/40 w-24 mb-1"></div>
-                <div className="font-bold">{profile.signatureText || 'Authorized Signatory'}</div>
-              </div>
-            </div>
-
-            {/* Footer Note */}
-            <div className="pt-2 text-center text-[10px] space-y-0.5 border-t border-dashed border-black/40">
-              <div>{profile.invoiceFooterNote || 'Thank you for your visit!'}</div>
-              <div className="text-[9px] text-black/60">*** Powered by Vyapar Plus ***</div>
+            {/* Compact Thermal Footer (Paper saving) */}
+            <div className="pt-2 text-center text-[10px] border-t border-dashed border-black/40 text-black/80 font-medium">
+              <div>Thank you for your business!</div>
             </div>
           </div>
         </div>
