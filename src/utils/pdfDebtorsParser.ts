@@ -51,7 +51,7 @@ export function isOtherAgentAccount(name?: string | null): { isExcluded: boolean
   }
 
   // 4. Shin Shakti Kirana Stores Fulgavdi
-  if (/FULGAVDI/i.test(upper) || /SHIN\s+SHAKTI\s+KIRANA/i.test(upper)) {
+  if (/FULGAVDI/i.test(upper) || (/SHIN\s+SHAKTI\s+KIRANA/i.test(upper) && !/BADODIYA/i.test(upper))) {
     return { isExcluded: true, reason: 'Other Agent (Fulgavdi Route)' };
   }
 
@@ -194,13 +194,24 @@ export async function parseDebtorsPdf(fileData: ArrayBuffer): Promise<ParsePdfRe
 
       if (isAmount(lastToken)) {
         const val1 = parseFloat(lastToken);
-        // If line has "FULGAVDI" or "SHIN SHAKTI", it belongs to Credit column; otherwise Debit
-        if (/FULGAVDI/i.test(fullLineText) || /SHIN SHAKTI/i.test(fullLineText)) {
+        if (isAmount(secondLastToken)) {
+          const val2 = parseFloat(secondLastToken);
+          // Two numbers at end: first is Debit, second is Credit
+          debitVal = val2;
           creditVal = val1;
+          nameParts = tokens.slice(0, tokens.length - 2);
         } else {
-          debitVal = val1;
+          // If line has "FULGAVDI", it belongs to the Fulgavdi Credit column; otherwise Debit
+          // NOTE: Do NOT match general "SHIN SHAKTI" because regular customers like
+          // "Badodiya Shin Shakti Sharmaji" are Debit accounts (receivables / Lena hai).
+          const isFulgavdiCredit = /FULGAVDI/i.test(fullLineText);
+          if (isFulgavdiCredit) {
+            creditVal = val1;
+          } else {
+            debitVal = val1;
+          }
+          nameParts = tokens.slice(0, tokens.length - 1);
         }
-        nameParts = tokens.slice(0, tokens.length - 1);
 
         const partyName = nameParts.join(' ').trim();
         if (partyName && partyName.length > 2) {
