@@ -25,6 +25,7 @@ import {
   ArrowRightCircle,
   ArrowLeftRight,
   Zap,
+  Building2,
   Search
 } from 'lucide-react';
 import { 
@@ -92,7 +93,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [type, setType] = useState<TransactionType>(initialType);
   const [partyId, setPartyId] = useState<number | undefined>(initialPartyId);
   const [firmId, setFirmId] = useState<number | undefined>(firms[0]?.id);
-  const [bankAccountId, setBankAccountId] = useState<number | undefined>(bankAccounts[0]?.id);
+  const [bankAccountId, setBankAccountId] = useState<number | undefined>(() => {
+    const nonCash = bankAccounts.find(
+      (b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash')
+    );
+    return nonCash?.id || bankAccounts[0]?.id;
+  });
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [voucherNumber, setVoucherNumber] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
@@ -167,6 +173,17 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       (p.accountCode && p.accountCode.toLowerCase().includes(q))
     );
   }, [parties, targetPartyType, partySearchText, selectedParty]);
+
+  const digitalBankAccounts = useMemo(() => {
+    const nonCash = bankAccounts.filter(
+      (b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash')
+    );
+    return nonCash.length > 0 ? nonCash : bankAccounts;
+  }, [bankAccounts]);
+
+  const selectedBank = useMemo(() => {
+    return bankAccounts.find((b) => b.id === Number(bankAccountId)) || digitalBankAccounts[0];
+  }, [bankAccounts, bankAccountId, digitalBankAccounts]);
 
 
   // Quick Add Party Switch & State in Customer/Party column
@@ -285,7 +302,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPartySearchText(matchedP ? matchedP.name : '');
       setIsPartyDropdownOpen(false);
       setFirmId(firms[0]?.id);
-      setBankAccountId(bankAccounts[0]?.id);
+      const nonCash = bankAccounts.find((b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash'));
+      setBankAccountId(nonCash?.id || bankAccounts[0]?.id);
       setContraType('CASH_TO_BANK');
       setFromBankAccountId(bankAccounts[0]?.id);
       setToBankAccountId(bankAccounts[1]?.id || bankAccounts[0]?.id);
@@ -532,46 +550,39 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const applyDenomTotalToVoucher = (newTotal: number) => {
     if (paymentMode === 'CASH') {
-      if (!isItemBased) {
+      if (!isItemBased || invoiceItems.length === 0) {
         setAmount(newTotal);
         setPaidAmount(newTotal);
         setCashPart(newTotal);
+        if (isItemBased) {
+          setPaymentStatus(newTotal > 0 ? 'PAID' : 'UNPAID');
+        }
       } else {
-        if (amount === 0) {
-          setAmount(newTotal);
-          setPaidAmount(newTotal);
+        setPaidAmount(newTotal);
+        if (newTotal >= amount) {
           setPaymentStatus('PAID');
+        } else if (newTotal > 0) {
+          setPaymentStatus('PARTIAL');
         } else {
-          setPaidAmount(newTotal);
-          if (newTotal >= amount) {
-            setPaymentStatus('PAID');
-          } else if (newTotal > 0) {
-            setPaymentStatus('PARTIAL');
-          } else {
-            setPaymentStatus('UNPAID');
-          }
+          setPaymentStatus('UNPAID');
         }
       }
     } else if (paymentMode === 'SPLIT') {
       setCashPart(newTotal);
-      if (!isItemBased) {
+      if (!isItemBased || invoiceItems.length === 0) {
         const newTotalAmount = newTotal + (onlinePart || 0);
         setAmount(newTotalAmount);
         setPaidAmount(newTotalAmount);
+        if (isItemBased) {
+          setPaymentStatus(newTotalAmount > 0 ? 'PAID' : 'UNPAID');
+        }
       } else {
-        if (amount === 0) {
-          const newTotalAmount = newTotal + (onlinePart || 0);
-          setAmount(newTotalAmount);
-          setPaidAmount(newTotalAmount);
+        const totalReceived = newTotal + (onlinePart || 0);
+        setPaidAmount(Math.min(totalReceived, amount));
+        if (totalReceived >= amount) {
           setPaymentStatus('PAID');
-        } else {
-          const totalReceived = newTotal + (onlinePart || 0);
-          setPaidAmount(Math.min(totalReceived, amount));
-          if (totalReceived >= amount) {
-            setPaymentStatus('PAID');
-          } else if (totalReceived > 0) {
-            setPaymentStatus('PARTIAL');
-          }
+        } else if (totalReceived > 0) {
+          setPaymentStatus('PARTIAL');
         }
       }
     }
@@ -592,10 +603,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       (nextDenoms.c5 || 0) * 5 +
       (nextDenoms.coins || 0);
 
-    // In reverse mode (or if target cash is 0), note counts immediately drive the cash amount!
-    if (autoSyncFromDenom || targetCashAmount === 0) {
-      applyDenomTotalToVoucher(nextTotal);
-    }
+    // Whenever note counts are edited, immediately drive and sync the cash amount in the voucher!
+    setAutoSyncFromDenom(true);
+    applyDenomTotalToVoucher(nextTotal);
   };
 
   const handleApplyCountedCash = () => {
@@ -605,7 +615,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const handleClearDenoms = () => {
     setDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 });
-    if (autoSyncFromDenom) {
+    if (!isItemBased || invoiceItems.length === 0) {
       applyDenomTotalToVoucher(0);
     }
   };
@@ -734,6 +744,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
     setLoading(true);
     try {
+      const selectedFirm = firms.find((f) => f.id === Number(firmId));
+      const targetBank = (paymentMode === 'CASH')
+        ? undefined
+        : (bankAccounts.find((b) => b.id === Number(bankAccountId)) || digitalBankAccounts[0]);
+
       let splitData: SplitPaymentDetail | undefined = undefined;
       if (finalStatus !== 'UNPAID' && paymentMode === 'SPLIT') {
         splitData = {
@@ -741,11 +756,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           onlineAmount: Number(onlinePart),
           onlineMode,
           onlineRef: onlineRef.trim() || undefined,
+          bankAccountId: targetBank?.id,
+          bankAccountName: targetBank?.accountName,
         };
       }
-
-      const selectedFirm = firms.find((f) => f.id === Number(firmId));
-      const selectedBank = bankAccounts.find((b) => b.id === Number(bankAccountId));
 
       if (type === 'CONTRA') {
         const fromBank = bankAccounts.find((b) => b.id === Number(fromBankAccountId));
@@ -775,8 +789,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         partyName: selectedParty ? selectedParty.name : type === 'EXPENSE' ? 'General Expense' : undefined,
         firmId: selectedFirm?.id,
         firmName: selectedFirm?.name,
-        bankAccountId: (paymentMode === 'BANK' || paymentMode === 'UPI' || (paymentMode === 'SPLIT' && onlinePart > 0)) ? selectedBank?.id : undefined,
-        bankAccountName: (paymentMode === 'BANK' || paymentMode === 'UPI' || (paymentMode === 'SPLIT' && onlinePart > 0)) ? selectedBank?.accountName : undefined,
+        bankAccountId: (paymentMode === 'BANK' || paymentMode === 'UPI' || (paymentMode === 'SPLIT' && onlinePart > 0)) ? targetBank?.id : undefined,
+        bankAccountName: (paymentMode === 'BANK' || paymentMode === 'UPI' || (paymentMode === 'SPLIT' && onlinePart > 0)) ? targetBank?.accountName : undefined,
         originalVoucherNumber: (type === 'CREDIT_NOTE' || type === 'DEBIT_NOTE') ? (originalVoucherNumber.trim() || undefined) : undefined,
         returnReason: (type === 'CREDIT_NOTE' || type === 'DEBIT_NOTE') ? (returnReason.trim() || undefined) : undefined,
         date,
@@ -1041,7 +1055,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-2 sm:p-3 space-y-2 overflow-y-auto overflow-x-hidden w-full max-w-full flex-1 flex flex-col justify-between">
+        <form onSubmit={handleSubmit} className="p-2 sm:p-3 space-y-2.5 overflow-y-auto overflow-x-hidden w-full max-w-full flex-1 flex flex-col justify-start">
           {/* Contra Mode Selection (for Internal Cash ⇄ Bank Transfers) */}
           {type === 'CONTRA' ? (
             <div className="bg-purple-50/80 p-2 sm:p-2.5 rounded-xl border border-purple-200 space-y-2">
@@ -1183,317 +1197,285 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
               </div>
             </div>
           ) : (
-            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1.5">
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                {type !== 'EXPENSE' ? (
-                  <div className={firms.length > 1 ? "sm:col-span-6" : "sm:col-span-8"}>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1">
-                          <User className="w-3 h-3 text-blue-600" />
-                          {type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'Customer' : 'Supplier'}
-                          <span className="text-rose-500">*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsQuickAddParty(!isQuickAddParty);
-                            if (isQuickAddParty) {
-                              setQuickPartyName('');
-                              setQuickPartyPhone('');
-                            }
-                          }}
-                          className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
-                            isQuickAddParty
-                              ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300 shadow-2xs'
-                          }`}
-                          title={isQuickAddParty ? 'Back to party dropdown list' : 'Add new party directly here'}
-                        >
-                          {isQuickAddParty ? (
-                            <>
-                              <ArrowLeft className="w-2.5 h-2.5" />
-                              <span>Select List</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-2.5 h-2.5" />
-                              <span>+ Add Party</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {selectedParty && !isQuickAddParty && (
-                        <span className={`text-[10px] font-bold ${selectedParty.currentBalance >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          Bal: {formatCurrency(Math.abs(selectedParty.currentBalance))} {selectedParty.currentBalance >= 0 ? '(Recv)' : '(Pay)'}
-                        </span>
-                      )}
-                    </div>
-
-                    {isQuickAddParty ? (
-                      <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            autoFocus
-                            placeholder={`Enter new ${type === 'PAYMENT_IN' || type === 'SALE' || type === 'CREDIT_NOTE' || type === 'ESTIMATE' ? 'customer' : 'supplier'} name...`}
-                            value={quickPartyName}
-                            onChange={(e) => setQuickPartyName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleQuickCreateParty();
-                              }
-                            }}
-                            className="w-full px-2.5 py-1.5 text-xs font-bold border border-blue-400 rounded-lg outline-none bg-blue-50/40 focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-                          />
-                        </div>
-                        <input
-                          type="tel"
-                          placeholder="Phone (opt)"
-                          value={quickPartyPhone}
-                          onChange={(e) => setQuickPartyPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleQuickCreateParty();
-                            }
-                          }}
-                          className="w-24 sm:w-28 px-2 py-1.5 text-xs border border-slate-300 rounded-lg outline-none bg-white placeholder:text-slate-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleQuickCreateParty}
-                          disabled={!quickPartyName.trim() || isQuickAddingParty}
-                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>{isQuickAddingParty ? '...' : 'Add'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsQuickAddParty(false);
-                            setQuickPartyName('');
-                            setQuickPartyPhone('');
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                          title="Cancel"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <div className="flex items-center gap-1.5">
-                          <div className="relative flex-1">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={partySearchText}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setPartySearchText(val);
-                                setIsPartyDropdownOpen(true);
-                                if (selectedParty && val.trim().toLowerCase() !== selectedParty.name.toLowerCase()) {
-                                  setPartyId(undefined);
-                                }
-                              }}
-                              onFocus={() => setIsPartyDropdownOpen(true)}
-                              placeholder={`Type ${targetPartyType === 'CUSTOMER' ? 'Customer' : 'Supplier'} name to search...`}
-                              className={`w-full pl-8 pr-16 py-1.5 text-xs font-bold border rounded-lg outline-none bg-white transition-all shadow-2xs ${
-                                partyId
-                                  ? 'border-emerald-500 bg-emerald-50/20 text-slate-900 focus:ring-2 focus:ring-emerald-500'
-                                  : 'border-slate-300 text-slate-800 focus:ring-2 focus:ring-blue-500'
-                              }`}
-                            />
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                              {partySearchText && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPartySearchText('');
-                                    setPartyId(undefined);
-                                    setIsPartyDropdownOpen(true);
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
-                                  title="Clear"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setIsPartyDropdownOpen(!isPartyDropdownOpen)}
-                                className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
-                                title="Open party list"
-                              >
-                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isPartyDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
-                              </button>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsPartyDropdownOpen(false);
-                              setQuickPartyName(partySearchText.trim());
-                              setIsQuickAddParty(true);
-                            }}
-                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 transition-all"
-                            title="Add new party directly"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span className="hidden xs:inline">+ Add Party</span>
-                          </button>
-                        </div>
-
-                        {/* Floating Autocomplete Dropdown */}
-                        {isPartyDropdownOpen && (
-                          <>
-                            {/* Backdrop to close on tap outside */}
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={() => setIsPartyDropdownOpen(false)}
-                            />
-
-                            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-60 sm:max-h-72 animate-in fade-in zoom-in-95 duration-100">
-                              <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between shrink-0">
-                                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                                  {partySearchText.trim()
-                                    ? `Matching (${filteredParties.length})`
-                                    : `Showing Saved Parties (${filteredParties.length})`}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsPartyDropdownOpen(false);
-                                    setQuickPartyName(partySearchText.trim());
-                                    setIsQuickAddParty(true);
-                                  }}
-                                  className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  <span>+ Add New Party</span>
-                                </button>
-                              </div>
-
-                              <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
-                                {filteredParties.length > 0 ? (
-                                  filteredParties.map((p) => {
-                                    const isSelected = p.id === partyId;
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setPartyId(p.id);
-                                          setPartySearchText(p.name);
-                                          setIsPartyDropdownOpen(false);
-                                        }}
-                                        className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
-                                          isSelected ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50 active:bg-slate-100'
-                                        }`}
-                                      >
-                                        <div className="min-w-0 flex-1">
-                                          <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1.5">
-                                            <span>{p.name}</span>
-                                            {isSelected && (
-                                              <span className="text-[10px] bg-blue-100 text-blue-700 px-1 py-0.2 rounded font-extrabold shrink-0">Selected</span>
-                                            )}
-                                          </div>
-                                          <div className="text-[10px] text-slate-500 font-mono truncate">
-                                            {p.phone || p.accountCode || ''}
-                                          </div>
-                                        </div>
-
-                                        <div className="text-right shrink-0">
-                                          <div className={`text-xs font-bold flex items-center justify-end gap-0.5 ${
-                                            p.currentBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                                          }`}>
-                                            <span>{p.currentBalance >= 0 ? '↓' : '↑'}</span>
-                                            <span>{formatCurrency(Math.abs(p.currentBalance))}</span>
-                                          </div>
-                                          <div className="text-[9px] text-slate-400 font-semibold">
-                                            {p.currentBalance >= 0 ? 'To Receive' : 'To Pay'}
-                                          </div>
-                                        </div>
-                                      </button>
-                                    );
-                                  })
-                                ) : (
-                                  <div className="p-4 text-center space-y-2">
-                                    <p className="text-xs text-slate-500 font-medium">
-                                      No matching parties found for <span className="font-bold text-slate-700">"{partySearchText}"</span>
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setIsPartyDropdownOpen(false);
-                                        setQuickPartyName(partySearchText.trim());
-                                        setIsQuickAddParty(true);
-                                      }}
-                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all shadow-xs cursor-pointer"
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                      <span>Create "{partySearchText.trim()}" as New Party</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className={firms.length > 1 ? "sm:col-span-6" : "sm:col-span-8"}>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
-                      Expense Title / Category
+            <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-2">
+              {/* Line 1: Customer / Supplier / Expense */}
+              {type !== 'EXPENSE' ? (
+                isQuickAddParty ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <label className="text-[11px] font-bold text-slate-700 w-16 sm:w-20 shrink-0 flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-blue-600" />
+                      <span>New</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Rent, Tea, Electricity"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                      autoFocus
+                      placeholder={`New ${targetPartyType === 'CUSTOMER' ? 'customer' : 'supplier'} name...`}
+                      value={quickPartyName}
+                      onChange={(e) => setQuickPartyName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuickCreateParty();
+                        }
+                      }}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-bold border border-blue-400 rounded-lg outline-none bg-blue-50/40 focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
                     />
-                  </div>
-                )}
-
-                {/* Firm Selector */}
-                {firms.length > 1 && (
-                  <div className="sm:col-span-3">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
-                      🏢 Firm
-                    </label>
-                    <select
-                      value={firmId || ''}
-                      onChange={(e) => setFirmId(Number(e.target.value) || undefined)}
-                      className="w-full px-2 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white"
+                    <input
+                      type="tel"
+                      placeholder="Phone"
+                      value={quickPartyPhone}
+                      onChange={(e) => setQuickPartyPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuickCreateParty();
+                        }
+                      }}
+                      className="w-20 sm:w-24 px-2 py-1.5 text-xs border border-slate-300 rounded-lg outline-none bg-white placeholder:text-slate-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleQuickCreateParty}
+                      disabled={!quickPartyName.trim() || isQuickAddingParty}
+                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1"
                     >
-                      {firms.map((f) => (
-                        <option key={f.id} value={f.id}>{f.name} ({f.code || 'Main'})</option>
-                      ))}
-                    </select>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isQuickAddingParty ? '...' : 'Add'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsQuickAddParty(false);
+                        setQuickPartyName('');
+                        setQuickPartyPhone('');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                )}
+                ) : (
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label className="text-[11px] font-bold text-slate-700 w-16 sm:w-20 shrink-0 flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{targetPartyType === 'CUSTOMER' ? 'Party' : 'Supplier'}</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
 
-                {/* Date */}
-                <div className={firms.length > 1 ? "sm:col-span-3" : "sm:col-span-4"}>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-tight mb-0.5">
-                    📅 Date
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={partySearchText}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPartySearchText(val);
+                          setIsPartyDropdownOpen(true);
+                          if (selectedParty && val.trim().toLowerCase() !== selectedParty.name.toLowerCase()) {
+                            setPartyId(undefined);
+                          }
+                        }}
+                        onFocus={() => setIsPartyDropdownOpen(true)}
+                        placeholder={`Search ${targetPartyType === 'CUSTOMER' ? 'Customer' : 'Supplier'}...`}
+                        className={`w-full pl-8 pr-12 py-1.5 text-xs font-bold border rounded-lg outline-none bg-white transition-all shadow-2xs ${
+                          partyId
+                            ? 'border-emerald-500 bg-emerald-50/20 text-slate-900 focus:ring-2 focus:ring-emerald-500'
+                            : 'border-slate-300 text-slate-800 focus:ring-2 focus:ring-blue-500'
+                        }`}
+                      />
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                        {partySearchText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPartySearchText('');
+                              setPartyId(undefined);
+                              setIsPartyDropdownOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Clear"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsPartyDropdownOpen(!isPartyDropdownOpen)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Open party list"
+                        >
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isPartyDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                        </button>
+                      </div>
+
+                      {/* Floating Autocomplete Dropdown */}
+                      {isPartyDropdownOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setIsPartyDropdownOpen(false)}
+                          />
+
+                          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-60 sm:max-h-72 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between shrink-0">
+                              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                {partySearchText.trim()
+                                  ? `Matching (${filteredParties.length})`
+                                  : `Showing Saved Parties (${filteredParties.length})`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsPartyDropdownOpen(false);
+                                  setQuickPartyName(partySearchText.trim());
+                                  setIsQuickAddParty(true);
+                                }}
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>+ Add New</span>
+                              </button>
+                            </div>
+
+                            <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                              {filteredParties.length > 0 ? (
+                                filteredParties.map((p) => {
+                                  const isSelected = p.id === partyId;
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setPartyId(p.id);
+                                        setPartySearchText(p.name);
+                                        setIsPartyDropdownOpen(false);
+                                      }}
+                                      className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                                        isSelected ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50 active:bg-slate-100'
+                                      }`}
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1.5">
+                                          <span>{p.name}</span>
+                                          {isSelected && (
+                                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1 py-0.2 rounded font-extrabold shrink-0">Selected</span>
+                                          )}
+                                        </div>
+                                        <div className="text-[10px] text-slate-500 font-mono truncate">
+                                          {p.phone || p.accountCode || ''}
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0">
+                                        <div className={`text-xs font-bold flex items-center justify-end gap-0.5 ${
+                                          p.currentBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                                        }`}>
+                                          <span>{p.currentBalance >= 0 ? '↓' : '↑'}</span>
+                                          <span>{formatCurrency(Math.abs(p.currentBalance))}</span>
+                                        </div>
+                                        <div className="text-[9px] text-slate-400 font-semibold">
+                                          {p.currentBalance >= 0 ? 'To Receive' : 'To Pay'}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              ) : (
+                                <div className="p-4 text-center space-y-2">
+                                  <p className="text-xs text-slate-500 font-medium">
+                                    No matching parties found for <span className="font-bold text-slate-700">"{partySearchText}"</span>
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsPartyDropdownOpen(false);
+                                      setQuickPartyName(partySearchText.trim());
+                                      setIsQuickAddParty(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Create "{partySearchText.trim()}" as New Party</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {selectedParty && (
+                      <span className={`text-[10px] font-bold px-1.5 py-1 rounded-lg border shrink-0 hidden xs:inline-flex items-center ${
+                        selectedParty.currentBalance >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'
+                      }`} title={`Current Balance: ₹${Math.abs(selectedParty.currentBalance)}`}>
+                        Bal: {formatCurrency(Math.abs(selectedParty.currentBalance))}
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPartyDropdownOpen(false);
+                        setQuickPartyName(partySearchText.trim());
+                        setIsQuickAddParty(true);
+                      }}
+                      className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 transition-all"
+                      title="Add new party directly"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Add</span>
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <label className="text-[11px] font-bold text-slate-700 w-16 sm:w-20 shrink-0">
+                    Expense <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="date"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white"
+                    type="text"
+                    placeholder="e.g. Rent, Tea, Electricity"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
                   />
                 </div>
+              )}
+
+              {/* Line 2: Firm (if multiple firms) */}
+              {firms.length > 1 && (
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <label className="text-[11px] font-bold text-slate-700 w-16 sm:w-20 shrink-0 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Firm</span>
+                  </label>
+                  <select
+                    value={firmId || ''}
+                    onChange={(e) => setFirmId(Number(e.target.value) || undefined)}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 truncate"
+                  >
+                    {firms.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name} ({f.code || 'Main'})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Line 3: Date */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <label className="text-[11px] font-bold text-slate-700 w-16 sm:w-20 shrink-0 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Date</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                />
               </div>
             </div>
           )}
@@ -1760,19 +1742,6 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                   Payment Mode ({formatCurrency(effectivePaidAmount)})
                 </label>
-                {(paymentMode === 'UPI' || paymentMode === 'BANK') && bankAccounts.length > 0 && (
-                  <select
-                    value={bankAccountId || ''}
-                    onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
-                    className="p-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-slate-800 outline-none max-w-xs"
-                  >
-                    {bankAccounts.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.accountName} ({b.bankName})
-                      </option>
-                    ))}
-                  </select>
-                )}
               </div>
 
               <div className="grid grid-cols-4 gap-1.5">
@@ -1804,6 +1773,33 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 ))}
               </div>
 
+              {/* Target Bank/UPI Account for UPI & BANK Modes */}
+              {(paymentMode === 'UPI' || paymentMode === 'BANK') && (
+                <div className="p-2 bg-blue-50/70 border border-blue-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-blue-900 uppercase">
+                      {paymentMode === 'UPI' ? '📱 UPI Target Account' : '🏦 Bank Target Account'} {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Paid From)' : '(Received Into)'}
+                    </label>
+                    {selectedBank?.upiId && paymentMode === 'UPI' && (
+                      <span className="text-[10px] font-mono text-blue-700 font-bold bg-white px-1.5 py-0.2 rounded border border-blue-200">
+                        UPI: {selectedBank.upiId}
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    value={bankAccountId || ''}
+                    onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
+                    className="w-full p-1.5 text-xs font-bold border border-blue-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  >
+                    {digitalBankAccounts.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.accountName} ({b.bankName}) {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Split Details (if SPLIT) */}
               {paymentMode === 'SPLIT' && (
                 <div className="p-2 bg-amber-50/80 rounded-lg border border-amber-200 space-y-1.5 text-xs">
@@ -1833,6 +1829,32 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       />
                     </div>
                   </div>
+
+                  {/* Online Account for Split */}
+                  <div className="p-1.5 bg-white/90 rounded-lg border border-amber-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-amber-900 uppercase">
+                        🏦 Online Deposit Account {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Debited From)' : '(Credited To)'}
+                      </label>
+                      {selectedBank?.upiId && (
+                        <span className="text-[9px] font-mono text-blue-700 font-bold bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
+                          UPI: {selectedBank.upiId}
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      value={bankAccountId || ''}
+                      onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
+                      className="w-full p-1 text-xs font-bold border border-amber-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-500 text-slate-800"
+                    >
+                      {digitalBankAccounts.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.accountName} ({b.bankName}) {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       value={onlineMode}

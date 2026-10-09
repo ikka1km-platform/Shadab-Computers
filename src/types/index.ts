@@ -46,6 +46,8 @@ export interface SplitPaymentDetail {
   onlineAmount: number;
   onlineMode: 'UPI' | 'BANK' | 'CHEQUE';
   onlineRef?: string;
+  bankAccountId?: number;
+  bankAccountName?: string;
 }
 
 export interface InvoiceItemEntry {

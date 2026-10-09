@@ -411,6 +411,12 @@ export const Daybook: React.FC<DaybookProps> = ({
                             {tx.paymentMode === 'SPLIT' && tx.splitPayment && (
                               <span className="text-[10px] text-slate-500">
                                 Cash ₹{tx.splitPayment.cashAmount} / {tx.splitPayment.onlineMode} ₹{tx.splitPayment.onlineAmount}
+                                {(tx.splitPayment.bankAccountName || tx.bankAccountName) ? ` (${tx.splitPayment.bankAccountName || tx.bankAccountName})` : ''}
+                              </span>
+                            )}
+                            {(tx.paymentMode === 'UPI' || tx.paymentMode === 'BANK') && tx.bankAccountName && (
+                              <span className="text-[10px] text-blue-600 font-medium">
+                                {tx.bankAccountName}
                               </span>
                             )}
                             {tx.cashDenominations && tx.cashDenominations.totalNotes ? (
