@@ -51,7 +51,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
   // Automatically parses multiple colours separated by comma (,) or slash (/)
   const parsedColors = useMemo(() => getItemColors({ color }), [color]);
 
-  // Up to 4 Images
+  // Product Images (Unlimited with Direct Camera & Gallery Support)
   const [images, setImages] = useState<string[]>([]);
   const [isCompressingImages, setIsCompressingImages] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -67,6 +67,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (itemToEdit) {
@@ -78,7 +79,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
       setBrand(itemToEdit.brand || '');
       setSize(itemToEdit.size || '');
       setColor(itemToEdit.color || (itemToEdit.colors ? itemToEdit.colors.join(', ') : ''));
-      setImages(itemToEdit.images ? [...itemToEdit.images].slice(0, 4) : []);
+      setImages(itemToEdit.images ? [...itemToEdit.images] : []);
       setSalePrice(itemToEdit.salePrice || 0);
       setPurchasePrice(itemToEdit.purchasePrice || 0);
       setTaxRate(itemToEdit.taxRate || 0);
@@ -106,18 +107,12 @@ export const ItemModal: React.FC<ItemModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle uploading 1 or multiple photos (up to 4)
+  // Handle uploading 1 or multiple photos (Unlimited, via Camera or Gallery)
   const handleImageFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const availableSlots = 4 - images.length;
-    if (availableSlots <= 0) {
-      alert('You have already reached the maximum limit of 4 product images. Delete an image first to upload a new one.');
-      return;
-    }
-
-    const filesToProcess = Array.from(files).slice(0, availableSlots);
+    const filesToProcess = Array.from(files);
     setIsCompressingImages(true);
 
     try {
@@ -128,7 +123,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
         compressedDataUrls.push(compressed);
       }
 
-      setImages((prev) => [...prev, ...compressedDataUrls].slice(0, 4));
+      setImages((prev) => [...prev, ...compressedDataUrls]);
     } catch (err) {
       console.error('Error compressing product images:', err);
       alert('Failed to process image file. Please try a different image.');
@@ -136,6 +131,9 @@ export const ItemModal: React.FC<ItemModalProps> = ({
       setIsCompressingImages(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
       }
     }
   };
@@ -244,32 +242,59 @@ export const ItemModal: React.FC<ItemModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-5">
-          {/* SECTION 1: PRODUCT IMAGES (UP TO 4) */}
+          {/* SECTION 1: PRODUCT IMAGES (UNLIMITED WITH DIRECT CAMERA & GALLERY) */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-indigo-600" />
                   <span>Product Photos</span>
-                  <span className="text-[11px] font-semibold text-slate-500 font-mono">
-                    ({images.length}/4 Uploaded)
+                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full font-mono">
+                    {images.length} {images.length === 1 ? 'Photo' : 'Photos'}
                   </span>
                 </label>
-                <p className="text-[11px] text-slate-400">Upload up to 4 high-res photos. First image is the main cover.</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Unlimited photos supported • Direct camera snapshot or gallery upload • First image is cover
+                </p>
               </div>
 
-              {images.length < 4 && (
+              <div className="flex items-center gap-2">
+                {/* Take Photo via Camera */}
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={isCompressingImages}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                  title="Take photo directly from Camera"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Camera</span>
+                </button>
+
+                {/* Upload from Gallery / Files */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isCompressingImages}
                   className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                  title="Upload photos from Gallery or Device"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>{isCompressingImages ? 'Optimizing...' : 'Upload Photos'}</span>
+                  <span>{isCompressingImages ? 'Optimizing...' : 'Gallery'}</span>
                 </button>
-              )}
+              </div>
 
+              {/* Native Camera input (triggers camera directly on mobile) */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageFilesSelected}
+                className="hidden"
+              />
+
+              {/* Gallery / File input (supports multiple selection) */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -280,81 +305,90 @@ export const ItemModal: React.FC<ItemModalProps> = ({
               />
             </div>
 
-            {/* 4 Interactive Photo Slots */}
-            <div className="grid grid-cols-4 gap-2.5">
-              {[0, 1, 2, 3].map((slotIdx) => {
-                const imgUrl = images[slotIdx];
+            {/* Unlimited Photos Grid */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+              {images.map((imgUrl, slotIdx) => {
                 const isCover = slotIdx === 0;
-
-                if (imgUrl) {
-                  return (
-                    <div
-                      key={slotIdx}
-                      className="relative group aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-white shadow-2xs flex items-center justify-center"
-                    >
-                      <img
-                        src={imgUrl}
-                        alt={`Product ${slotIdx + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-
-                      {/* Main Cover Badge */}
-                      {isCover && (
-                        <div className="absolute top-1 left-1 bg-emerald-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight flex items-center gap-0.5">
-                          <Star className="w-2.5 h-2.5 fill-white" /> Cover
-                        </div>
-                      )}
-
-                      {/* Hover / Overlay Controls */}
-                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewImage(imgUrl)}
-                            className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
-                            title="Preview Large"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(slotIdx)}
-                            className="p-1.5 bg-rose-600/90 hover:bg-rose-600 text-white rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
-                            title="Remove Photo"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {!isCover && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetPrimaryCover(slotIdx)}
-                            className="text-[9px] font-bold text-white bg-slate-800/90 hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-xs"
-                          >
-                            Make Cover
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
                 return (
-                  <button
+                  <div
                     key={slotIdx}
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isCompressingImages}
-                    className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-indigo-600 cursor-pointer p-1"
+                    className="relative group aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-white shadow-2xs flex items-center justify-center transition-all hover:border-indigo-400"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-[10px] font-bold">
-                      {isCover ? 'Cover Photo' : `Slot ${slotIdx + 1}`}
-                    </span>
-                  </button>
+                    <img
+                      src={imgUrl}
+                      alt={`Product ${slotIdx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Main Cover Badge */}
+                    {isCover && (
+                      <div className="absolute top-1 left-1 bg-emerald-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight flex items-center gap-0.5 pointer-events-none z-10">
+                        <Star className="w-2.5 h-2.5 fill-white" /> Cover
+                      </div>
+                    )}
+
+                    {/* Hover / Touch Overlay Controls */}
+                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1 z-20">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImage(imgUrl)}
+                          className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
+                          title="Preview Large"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(slotIdx)}
+                          className="p-1.5 bg-rose-600/90 hover:bg-rose-600 text-white rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
+                          title="Remove Photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {!isCover && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryCover(slotIdx)}
+                          className="text-[9px] font-bold text-white bg-slate-800/90 hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-xs"
+                        >
+                          Make Cover
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
+
+              {/* Action Slot 1: Direct Camera */}
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={isCompressingImages}
+                className="aspect-square rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-500 transition-all flex flex-col items-center justify-center gap-1 text-emerald-700 cursor-pointer p-1 group"
+                title="Snap photo with camera"
+              >
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-extrabold">+ Camera</span>
+              </button>
+
+              {/* Action Slot 2: Gallery Upload */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isCompressingImages}
+                className="aspect-square rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/40 hover:bg-indigo-50 hover:border-indigo-500 transition-all flex flex-col items-center justify-center gap-1 text-indigo-700 cursor-pointer p-1 group"
+                title="Upload photos from gallery"
+              >
+                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-extrabold">+ Gallery</span>
+              </button>
             </div>
           </div>
 
