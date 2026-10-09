@@ -71,6 +71,105 @@ interface TransactionModalProps {
   onOpenPrinterSettings?: () => void;
 }
 
+export const getPartyAssignedFirm = (
+  party: Party | undefined | null,
+  firms: Firm[] = []
+): Firm | undefined => {
+  if (!party || firms.length === 0) return firms.find((f) => f.isDefault) || firms[0];
+  if (party.firmId) {
+    const direct = firms.find((f) => f.id === Number(party.firmId));
+    if (direct) return direct;
+  }
+  if (party.firmName) {
+    const partyFirmLower = party.firmName.toLowerCase().trim();
+    const nameMatch = firms.find((f) => f.name.toLowerCase().trim() === partyFirmLower);
+    if (nameMatch) return nameMatch;
+    if (partyFirmLower.includes('shadab')) {
+      const shadab = firms.find((f) => /shadab/i.test(f.name));
+      if (shadab) return shadab;
+    }
+    if (partyFirmLower.includes('krishi')) {
+      const krishi = firms.find((f) => /krishi/i.test(f.name));
+      if (krishi) return krishi;
+    }
+  }
+  return firms.find((f) => f.isDefault) || firms[0];
+};
+
+export const getFirmLinkedBankAccount = (
+  targetFirmId: number | undefined,
+  firms: Firm[] = [],
+  bankAccounts: BankAccount[] = []
+): BankAccount | undefined => {
+  const digitalBanks = bankAccounts.filter(
+    (b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash')
+  );
+  const eligible = digitalBanks.length > 0 ? digitalBanks : bankAccounts;
+  if (eligible.length === 0) return undefined;
+
+  const firm = firms.find((f) => f.id === Number(targetFirmId));
+  const firmNameLower = (firm?.name || '').toLowerCase().trim();
+
+  // 1. Bank explicitly has firmId matching targetFirmId
+  if (targetFirmId) {
+    const matchByFirmId = eligible.find((b) => b.firmId === Number(targetFirmId));
+    if (matchByFirmId) return matchByFirmId;
+  }
+
+  // 2. Firm explicitly has bankAccountId pointing to bank
+  if (firm?.bankAccountId) {
+    const matchByFirmBankId = eligible.find((b) => b.id === Number(firm.bankAccountId));
+    if (matchByFirmBankId) return matchByFirmBankId;
+  }
+
+  // 3. Bank's firmName matches firm.name
+  if (firmNameLower) {
+    const matchByFirmName = eligible.find(
+      (b) => b.firmName && b.firmName.toLowerCase().trim() === firmNameLower
+    );
+    if (matchByFirmName) return matchByFirmName;
+  }
+
+  // 4. Firm name specific heuristics (Shadab Computers vs Krishi Sewa Kendra)
+  if (firmNameLower.includes('shadab') || (firm?.code && firm.code.toLowerCase().includes('shadab'))) {
+    const shadabBank = eligible.find(
+      (b) =>
+        b.accountNumber === '406205001812' ||
+        (b.accountName && /shadab/i.test(b.accountName)) ||
+        (b.firmName && /shadab/i.test(b.firmName)) ||
+        (b.upiId && /eazypay/i.test(b.upiId))
+    );
+    if (shadabBank) return shadabBank;
+  }
+
+  if (firmNameLower.includes('krishi') || (firm?.code && firm.code.toLowerCase().includes('krishi'))) {
+    const krishiBank = eligible.find(
+      (b) =>
+        b.accountNumber === '406205001843' ||
+        (b.accountName && /krishi/i.test(b.accountName)) ||
+        (b.firmName && /krishi/i.test(b.firmName)) ||
+        (b.upiId && /krishi/i.test(b.upiId))
+    );
+    if (krishiBank) return krishiBank;
+  }
+
+  // 5. Text match between accountName/firmName and firm.name
+  if (firmNameLower) {
+    const textMatch = eligible.find((b) => {
+      const accName = (b.accountName || '').toLowerCase().trim();
+      const bFirm = (b.firmName || '').toLowerCase().trim();
+      return (
+        (accName && (firmNameLower.includes(accName) || accName.includes(firmNameLower))) ||
+        (bFirm && (firmNameLower.includes(bFirm) || bFirm.includes(firmNameLower)))
+      );
+    });
+    if (textMatch) return textMatch;
+  }
+
+  // Fallback: Default bank or first digital bank
+  return eligible.find((b) => b.isDefault) || eligible[0];
+};
+
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   isOpen,
   onClose,
@@ -92,12 +191,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 }) => {
   const [type, setType] = useState<TransactionType>(initialType);
   const [partyId, setPartyId] = useState<number | undefined>(initialPartyId);
-  const [firmId, setFirmId] = useState<number | undefined>(firms[0]?.id);
+  const [firmId, setFirmId] = useState<number | undefined>(() => {
+    if (initialPartyId) {
+      const p = parties.find((x) => x.id === initialPartyId);
+      const f = getPartyAssignedFirm(p, firms);
+      if (f?.id) return f.id;
+    }
+    return firms.find((f) => f.isDefault)?.id || firms[0]?.id;
+  });
   const [bankAccountId, setBankAccountId] = useState<number | undefined>(() => {
-    const nonCash = bankAccounts.find(
-      (b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash')
-    );
-    return nonCash?.id || bankAccounts[0]?.id;
+    let targetFId: number | undefined = undefined;
+    if (initialPartyId) {
+      const p = parties.find((x) => x.id === initialPartyId);
+      const f = getPartyAssignedFirm(p, firms);
+      targetFId = f?.id;
+    }
+    targetFId = targetFId || firms.find((f) => f.isDefault)?.id || firms[0]?.id;
+    const linked = getFirmLinkedBankAccount(targetFId, firms, bankAccounts);
+    return linked?.id;
   });
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [voucherNumber, setVoucherNumber] = useState<string>('');
@@ -178,8 +289,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     const nonCash = bankAccounts.filter(
       (b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash')
     );
-    return nonCash.length > 0 ? nonCash : bankAccounts;
-  }, [bankAccounts]);
+    const list = nonCash.length > 0 ? nonCash : bankAccounts;
+    if (!firmId) return list;
+
+    const currentFirm = firms.find((f) => f.id === Number(firmId));
+    const currentFirmName = (currentFirm?.name || '').toLowerCase().trim();
+
+    return [...list].sort((a, b) => {
+      const aMatches =
+        a.firmId === Number(firmId) ||
+        (a.firmName && a.firmName.toLowerCase().trim() === currentFirmName) ||
+        (currentFirmName && a.accountName.toLowerCase().includes(currentFirmName));
+      const bMatches =
+        b.firmId === Number(firmId) ||
+        (b.firmName && b.firmName.toLowerCase().trim() === currentFirmName) ||
+        (currentFirmName && b.accountName.toLowerCase().includes(currentFirmName));
+
+      if (aMatches && !bMatches) return -1;
+      if (!aMatches && bMatches) return 1;
+      return 0;
+    });
+  }, [bankAccounts, firmId, firms]);
 
   const selectedBank = useMemo(() => {
     return bankAccounts.find((b) => b.id === Number(bankAccountId)) || digitalBankAccounts[0];
@@ -250,7 +380,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setIsPartyDropdownOpen(false);
       setDate(txToEdit.date);
       setVoucherNumber(txToEdit.voucherNumber);
-      setPaymentMode(txToEdit.paymentMode);
+      const pMode = txToEdit.paymentMode === 'BANK' ? 'UPI' : txToEdit.paymentMode;
+      setPaymentMode(pMode);
       setAmount(txToEdit.amount);
       setDescription(txToEdit.description || '');
       setInvoiceItems(txToEdit.items || []);
@@ -265,16 +396,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentStatus(pStatus);
       const pAmt = txToEdit.paidAmount !== undefined ? txToEdit.paidAmount : (pStatus === 'UNPAID' ? 0 : txToEdit.amount);
       setPaidAmount(pAmt);
-      setFirmId(txToEdit.firmId || firms[0]?.id);
-      setBankAccountId(txToEdit.bankAccountId || bankAccounts[0]?.id);
+      const editFirmId = txToEdit.firmId || firms.find((f) => f.isDefault)?.id || firms[0]?.id;
+      setFirmId(editFirmId);
+      const defaultBankForEdit = getFirmLinkedBankAccount(editFirmId, firms, bankAccounts);
+      setBankAccountId(txToEdit.bankAccountId || defaultBankForEdit?.id || bankAccounts[0]?.id);
 
       if (txToEdit.splitPayment) {
         setCashPart(txToEdit.splitPayment.cashAmount);
         setOnlinePart(txToEdit.splitPayment.onlineAmount);
-        setOnlineMode(txToEdit.splitPayment.onlineMode);
+        setOnlineMode('UPI');
         setOnlineRef(txToEdit.splitPayment.onlineRef || '');
       } else {
-        setCashPart(txToEdit.paymentMode === 'CASH' ? pAmt : 0);
+        setCashPart(pMode === 'CASH' ? pAmt : 0);
         setOnlinePart(0);
         setOnlineMode('UPI');
         setOnlineRef('');
@@ -301,9 +434,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       const matchedP = initialPartyId ? parties.find((x) => x.id === initialPartyId) : undefined;
       setPartySearchText(matchedP ? matchedP.name : '');
       setIsPartyDropdownOpen(false);
-      setFirmId(firms[0]?.id);
-      const nonCash = bankAccounts.find((b) => !b.accountNumber?.includes('CASH') && !b.bankName?.toLowerCase().includes('cash'));
-      setBankAccountId(nonCash?.id || bankAccounts[0]?.id);
+
+      const partyFirm = getPartyAssignedFirm(matchedP, firms);
+      const targetFirmId = partyFirm?.id || firms.find((f) => f.isDefault)?.id || firms[0]?.id;
+      setFirmId(targetFirmId);
+
+      const targetBank = getFirmLinkedBankAccount(targetFirmId, firms, bankAccounts);
+      setBankAccountId(targetBank?.id);
+
       setContraType('CASH_TO_BANK');
       setFromBankAccountId(bankAccounts[0]?.id);
       setToBankAccountId(bankAccounts[1]?.id || bankAccounts[0]?.id);
@@ -1350,6 +1488,17 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                                         setPartyId(p.id);
                                         setPartySearchText(p.name);
                                         setIsPartyDropdownOpen(false);
+
+                                        // Auto-preset Firm & Linked Bank Account for this party
+                                        const partyFirm = getPartyAssignedFirm(p, firms);
+                                        const targetFirmId = partyFirm?.id || firmId || firms[0]?.id;
+                                        if (targetFirmId) {
+                                          setFirmId(targetFirmId);
+                                          const targetBank = getFirmLinkedBankAccount(targetFirmId, firms, bankAccounts);
+                                          if (targetBank?.id) {
+                                            setBankAccountId(targetBank.id);
+                                          }
+                                        }
                                       }}
                                       className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
                                         isSelected ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50 active:bg-slate-100'
@@ -1453,7 +1602,14 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                   </label>
                   <select
                     value={firmId || ''}
-                    onChange={(e) => setFirmId(Number(e.target.value) || undefined)}
+                    onChange={(e) => {
+                      const newFirmId = Number(e.target.value) || undefined;
+                      setFirmId(newFirmId);
+                      const targetBank = getFirmLinkedBankAccount(newFirmId, firms, bankAccounts);
+                      if (targetBank?.id) {
+                        setBankAccountId(targetBank.id);
+                      }
+                    }}
                     className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 truncate"
                   >
                     {firms.map((f) => (
@@ -1744,11 +1900,10 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 </label>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { id: 'CASH', label: '💵 Cash' },
                   { id: 'UPI', label: '📱 UPI' },
-                  { id: 'BANK', label: '🏦 Bank' },
                   { id: 'SPLIT', label: '⚡ Split' },
                 ].map((m) => (
                   <button
@@ -1773,14 +1928,14 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 ))}
               </div>
 
-              {/* Target Bank/UPI Account for UPI & BANK Modes */}
+              {/* Target Bank/UPI Account for UPI Mode */}
               {(paymentMode === 'UPI' || paymentMode === 'BANK') && (
                 <div className="p-2 bg-blue-50/70 border border-blue-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold text-blue-900 uppercase">
-                      {paymentMode === 'UPI' ? '📱 UPI Target Account' : '🏦 Bank Target Account'} {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Paid From)' : '(Received Into)'}
+                      📱 UPI Target Account {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Paid From)' : '(Received Into)'}
                     </label>
-                    {selectedBank?.upiId && paymentMode === 'UPI' && (
+                    {selectedBank?.upiId && (
                       <span className="text-[10px] font-mono text-blue-700 font-bold bg-white px-1.5 py-0.2 rounded border border-blue-200">
                         UPI: {selectedBank.upiId}
                       </span>
@@ -1791,11 +1946,14 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                     onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
                     className="w-full p-1.5 text-xs font-bold border border-blue-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   >
-                    {digitalBankAccounts.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.accountName} ({b.bankName}) {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
-                      </option>
-                    ))}
+                    {digitalBankAccounts.map((b) => {
+                      const bFirm = firms.find((f) => f.id === b.firmId) || (b.firmName ? { name: b.firmName } : undefined);
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {b.accountName} ({b.bankName}){bFirm ? ` • Firm: ${bFirm.name}` : ''} {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}
@@ -1834,7 +1992,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                   <div className="p-1.5 bg-white/90 rounded-lg border border-amber-200 space-y-1">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-bold text-amber-900 uppercase">
-                        🏦 Online Deposit Account {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Debited From)' : '(Credited To)'}
+                        📱 Online / UPI Deposit Account {type === 'PAYMENT_OUT' || type === 'PURCHASE' ? '(Debited From)' : '(Credited To)'}
                       </label>
                       {selectedBank?.upiId && (
                         <span className="text-[9px] font-mono text-blue-700 font-bold bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
@@ -1847,11 +2005,14 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       onChange={(e) => setBankAccountId(Number(e.target.value) || undefined)}
                       className="w-full p-1 text-xs font-bold border border-amber-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-500 text-slate-800"
                     >
-                      {digitalBankAccounts.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.accountName} ({b.bankName}) {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
-                        </option>
-                      ))}
+                      {digitalBankAccounts.map((b) => {
+                        const bFirm = firms.find((f) => f.id === b.firmId) || (b.firmName ? { name: b.firmName } : undefined);
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {b.accountName} ({b.bankName}){bFirm ? ` • Firm: ${bFirm.name}` : ''} {b.upiId ? `• UPI: ${b.upiId}` : b.accountNumber ? `• A/C: ${b.accountNumber}` : ''} [Bal: {formatCurrency(b.currentBalance)}]
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

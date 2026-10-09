@@ -160,21 +160,6 @@ export async function initializeDatabase() {
         } catch {}
       }
     }
-    // Proactively heal UPI IDs for Shadab Computers and Krishi Sewa Kendra accounts
-    const shadabBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001812' || (b.accountName ? /shadab/i.test(b.accountName) && !b.accountNumber?.includes('CASH') : false)).toArray();
-    for (const sb of shadabBanks) {
-      if (sb.id && (!sb.upiId || sb.upiId === 'krishisewa@sbi')) {
-        await db.bankAccounts.update(sb.id, { upiId: 'eazypay.447KINJ6OP7QYA5@ICICI' });
-      }
-    }
-
-    const krishiBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001843' || (b.accountName ? /krishi/i.test(b.accountName) : false)).toArray();
-    for (const kb of krishiBanks) {
-      if (kb.id && (!kb.upiId || kb.upiId === 'krishisewa@sbi')) {
-        await db.bankAccounts.update(kb.id, { upiId: 'Krishisewa86@icici' });
-      }
-    }
-
     const allFirms = await db.firms.toArray();
     for (const f of allFirms) {
       if (f.id && /shadab/i.test(f.name || '') && (!f.upiId || f.upiId === 'krishisewa@sbi')) {
@@ -182,6 +167,40 @@ export async function initializeDatabase() {
       }
       if (f.id && /krishi/i.test(f.name || '') && (!f.upiId || f.upiId === 'krishisewa@sbi')) {
         await db.firms.update(f.id, { upiId: 'Krishisewa86@icici' });
+      }
+    }
+
+    const shadabFirm = allFirms.find(f => /shadab/i.test(f.name || ''));
+    const krishiFirm = allFirms.find(f => /krishi/i.test(f.name || ''));
+
+    // Proactively heal UPI IDs and firmId linkages for Shadab Computers and Krishi Sewa Kendra accounts
+    const shadabBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001812' || (b.accountName ? /shadab/i.test(b.accountName) && !b.accountNumber?.includes('CASH') : false)).toArray();
+    for (const sb of shadabBanks) {
+      const updates: any = {};
+      if (sb.id && (!sb.upiId || sb.upiId === 'krishisewa@sbi')) {
+        updates.upiId = 'eazypay.447KINJ6OP7QYA5@ICICI';
+      }
+      if (sb.id && shadabFirm && (!sb.firmId || !sb.firmName)) {
+        updates.firmId = shadabFirm.id;
+        updates.firmName = shadabFirm.name;
+      }
+      if (sb.id && Object.keys(updates).length > 0) {
+        await db.bankAccounts.update(sb.id, updates);
+      }
+    }
+
+    const krishiBanks = await db.bankAccounts.filter(b => b.accountNumber === '406205001843' || (b.accountName ? /krishi/i.test(b.accountName) : false)).toArray();
+    for (const kb of krishiBanks) {
+      const updates: any = {};
+      if (kb.id && (!kb.upiId || kb.upiId === 'krishisewa@sbi')) {
+        updates.upiId = 'Krishisewa86@icici';
+      }
+      if (kb.id && krishiFirm && (!kb.firmId || !kb.firmName)) {
+        updates.firmId = krishiFirm.id;
+        updates.firmName = krishiFirm.name;
+      }
+      if (kb.id && Object.keys(updates).length > 0) {
+        await db.bankAccounts.update(kb.id, updates);
       }
     }
   } catch (cleanErr) {
