@@ -25,7 +25,13 @@ import {
   CheckCircle2,
   RefreshCw,
   PhoneCall,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ShoppingBag,
+  Filter,
+  Tag,
+  UserCheck,
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { Party, Transaction, Item, BusinessProfile, Firm, BankAccount } from '../../types';
 import { formatCurrency, formatDate, compareTransactionsDesc } from '../../utils/formatters';
@@ -50,6 +56,7 @@ type ReportTab =
   | 'aging' 
   | 'receivables' 
   | 'sales' 
+  | 'item_sales'
   | 'purchases' 
   | 'stock' 
   | 'denomination';
@@ -84,6 +91,12 @@ export const Reports: React.FC<ReportsProps> = ({
   // Cashflow filter tab (All, Inflow, Outflow, Contra)
   const [cashflowTableFilter, setCashflowTableFilter] = useState<'ALL' | 'IN' | 'OUT' | 'CONTRA'>('ALL');
   const [sortOrder, setSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
+
+  // Item Sales / Product Ledger Filter State
+  const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
+  const [productSearchQuery, setProductSearchQuery] = useState<string>('');
+  const [buyerSearchQuery, setBuyerSearchQuery] = useState<string>('');
+  const [itemSalesSortOrder, setItemSalesSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
 
   const activeFirm = selectedFirmId !== 'ALL' ? firms.find((f) => f.id === Number(selectedFirmId)) : undefined;
 
@@ -554,6 +567,204 @@ export const Reports: React.FC<ReportsProps> = ({
     exportToCsv(`Inventory_Stock_Report`, headers, rows);
   };
 
+  // ----------------------------------------------------
+  // ITEM-WISE SALES & BUYER REPORT CALCULATION
+  // ----------------------------------------------------
+  const allItemSaleRecords = useMemo(() => {
+    const records: Array<{
+      id: string;
+      txId?: number;
+      voucherNumber: string;
+      date: string;
+      partyName: string;
+      partyId?: number;
+      phone?: string;
+      firmId?: number;
+      firmName?: string;
+      itemId?: number;
+      itemName: string;
+      quantity: number;
+      unit: string;
+      rate: number;
+      discount?: number;
+      taxRate?: number;
+      total: number;
+      paymentMode: string;
+      paymentStatus?: string;
+    }> = [];
+
+    for (const tx of filteredTxs) {
+      if (tx.type !== 'SALE' && tx.type !== 'CREDIT_NOTE') continue;
+
+      const isCreditNote = tx.type === 'CREDIT_NOTE';
+      const multiplier = isCreditNote ? -1 : 1;
+
+      const matchedParty = tx.partyId
+        ? parties.find((p) => p.id === tx.partyId)
+        : parties.find((p) => p.name.trim().toLowerCase() === (tx.partyName || '').trim().toLowerCase());
+
+      if (tx.items && tx.items.length > 0) {
+        tx.items.forEach((it, idx) => {
+          records.push({
+            id: `${tx.id}-${it.itemId ?? idx}-${it.name}`,
+            txId: tx.id,
+            voucherNumber: tx.voucherNumber,
+            date: tx.date,
+            partyName: tx.partyName || 'Cash Sale',
+            partyId: tx.partyId,
+            phone: matchedParty?.phone,
+            firmId: tx.firmId,
+            firmName: tx.firmName || activeFirm?.name || 'Main Firm',
+            itemId: it.itemId,
+            itemName: it.name,
+            quantity: it.quantity * multiplier,
+            unit: it.unit || 'Pcs',
+            rate: it.rate,
+            discount: it.discount,
+            taxRate: it.taxRate,
+            total: it.total * multiplier,
+            paymentMode: tx.paymentMode,
+            paymentStatus: tx.paymentStatus,
+          });
+        });
+      } else if (tx.description && tx.description.trim()) {
+        records.push({
+          id: `${tx.id}-desc`,
+          txId: tx.id,
+          voucherNumber: tx.voucherNumber,
+          date: tx.date,
+          partyName: tx.partyName || 'Cash Sale',
+          partyId: tx.partyId,
+          phone: matchedParty?.phone,
+          firmId: tx.firmId,
+          firmName: tx.firmName || activeFirm?.name || 'Main Firm',
+          itemName: tx.description,
+          quantity: 1 * multiplier,
+          unit: 'Pcs',
+          rate: tx.amount,
+          total: tx.amount * multiplier,
+          paymentMode: tx.paymentMode,
+          paymentStatus: tx.paymentStatus,
+        });
+      } else {
+        records.push({
+          id: `${tx.id}-gen`,
+          txId: tx.id,
+          voucherNumber: tx.voucherNumber,
+          date: tx.date,
+          partyName: tx.partyName || 'Cash Sale',
+          partyId: tx.partyId,
+          phone: matchedParty?.phone,
+          firmId: tx.firmId,
+          firmName: tx.firmName || activeFirm?.name || 'Main Firm',
+          itemName: 'Direct Sale Voucher',
+          quantity: 1 * multiplier,
+          unit: 'Pcs',
+          rate: tx.amount,
+          total: tx.amount * multiplier,
+          paymentMode: tx.paymentMode,
+          paymentStatus: tx.paymentStatus,
+        });
+      }
+    }
+
+    return records;
+  }, [filteredTxs, parties, activeFirm]);
+
+  // Available product options for filtering
+  const availableProductOptions = useMemo(() => {
+    const set = new Map<string, string>();
+    items.forEach((it) => set.set(it.name.toLowerCase(), it.name));
+    allItemSaleRecords.forEach((r) => {
+      if (!set.has(r.itemName.toLowerCase())) {
+        set.set(r.itemName.toLowerCase(), r.itemName);
+      }
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [items, allItemSaleRecords]);
+
+  // Filtered Item Sales Records
+  const filteredItemSaleRecords = useMemo(() => {
+    let list = allItemSaleRecords;
+
+    if (selectedProductFilter !== 'ALL') {
+      const target = selectedProductFilter.toLowerCase();
+      list = list.filter((r) => r.itemName.toLowerCase() === target || (r.itemId && String(r.itemId) === selectedProductFilter));
+    }
+
+    if (productSearchQuery.trim()) {
+      const pq = productSearchQuery.toLowerCase().trim();
+      list = list.filter((r) => r.itemName.toLowerCase().includes(pq));
+    }
+
+    if (buyerSearchQuery.trim()) {
+      const bq = buyerSearchQuery.toLowerCase().trim();
+      list = list.filter((r) => 
+        r.partyName.toLowerCase().includes(bq) || 
+        (r.phone && r.phone.includes(bq)) ||
+        r.voucherNumber.toLowerCase().includes(bq)
+      );
+    }
+
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.date).getTime();
+      const timeB = new Date(b.date).getTime();
+      return itemSalesSortOrder === 'NEWEST_FIRST' ? timeB - timeA : timeA - timeB;
+    });
+  }, [allItemSaleRecords, selectedProductFilter, productSearchQuery, buyerSearchQuery, itemSalesSortOrder]);
+
+  // KPI Summary for Filtered Item Sales
+  const itemSalesSummary = useMemo(() => {
+    const totalQty = filteredItemSaleRecords.reduce((sum, r) => sum + r.quantity, 0);
+    const totalAmount = filteredItemSaleRecords.reduce((sum, r) => sum + r.total, 0);
+    const uniqueBuyers = new Set(filteredItemSaleRecords.map((r) => r.partyName.toLowerCase())).size;
+    const uniqueProducts = new Set(filteredItemSaleRecords.map((r) => r.itemName.toLowerCase())).size;
+    const avgRate = totalQty > 0 ? totalAmount / totalQty : 0;
+
+    return {
+      totalQty,
+      totalAmount,
+      uniqueBuyers,
+      uniqueProducts,
+      avgRate,
+      count: filteredItemSaleRecords.length,
+    };
+  }, [filteredItemSaleRecords]);
+
+  const handleExportItemSalesCsv = () => {
+    const firmTitle = activeFirm ? activeFirm.name : 'Consolidated';
+    const productTitle = selectedProductFilter !== 'ALL' ? selectedProductFilter.replace(/\s+/g, '_') : 'All_Products';
+    const headers = [
+      'Date',
+      'Product / Item Name',
+      'Buyer / Customer',
+      'Phone',
+      'Voucher No',
+      'Firm',
+      'Quantity',
+      'Unit',
+      'Rate (₹)',
+      'Line Total (₹)',
+      'Payment Mode',
+      'Payment Status',
+    ];
+    const rows = filteredItemSaleRecords.map((r) => [
+      r.date,
+      r.itemName,
+      r.partyName,
+      r.phone || 'N/A',
+      r.voucherNumber,
+      r.firmName || firmTitle,
+      r.quantity,
+      r.unit,
+      r.rate,
+      r.total,
+      r.paymentMode,
+      r.paymentStatus || 'PAID',
+    ]);
+    exportToCsv(`Item_Sales_Buyers_${firmTitle}_${productTitle}`, headers, rows);
+  };
+
   return (
     <div className="space-y-5 pb-16 md:pb-6">
       {/* Top Header & Firm Filter */}
@@ -609,6 +820,7 @@ export const Reports: React.FC<ReportsProps> = ({
           { id: 'cashflow', label: 'Cash Flow Statement', icon: Wallet },
           { id: 'aging', label: 'Party Aging Analysis', icon: Users, badge: debtors.length },
           { id: 'sales', label: 'Sales Register', icon: TrendingUp },
+          { id: 'item_sales', label: 'Item Sales (Buyers)', icon: ShoppingBag, badge: filteredItemSaleRecords.length },
           { id: 'purchases', label: 'Purchase Summary', icon: ArrowDownLeft },
           { id: 'stock', label: 'Stock & Inventory', icon: Package, alertBadge: lowStockItems.length },
           { id: 'denomination', label: 'Cash Note Retally', icon: Calculator },
@@ -1528,12 +1740,21 @@ export const Reports: React.FC<ReportsProps> = ({
               <h3 className="font-bold text-slate-800 text-sm">Detailed Sales Register</h3>
               <p className="text-xs text-slate-400">Total Sales: {formatCurrency(totalSales)}</p>
             </div>
-            <button
-              onClick={handleExportSalesCsv}
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> Export Sales to Excel / CSV
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setReportTab('item_sales')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200 cursor-pointer shadow-2xs"
+              >
+                <ShoppingBag className="w-4 h-4 text-indigo-600" /> View Item & Buyer Report
+              </button>
+              <button
+                onClick={handleExportSalesCsv}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Export Sales to Excel / CSV
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -1596,6 +1817,362 @@ export const Reports: React.FC<ReportsProps> = ({
                           }`}>
                             {tx.paymentStatus || 'PAID'}
                           </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB CONTENT: ITEM-WISE SALES & BUYER REPORT          */}
+      {/* ==================================================== */}
+      {reportTab === 'item_sales' && (
+        <div className="space-y-4">
+          {/* Header & Export Actions */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-indigo-600" />
+                  Product Sales & Buyer Ledger
+                </h3>
+                {selectedProductFilter !== 'ALL' && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Tag className="w-3 h-3" /> {selectedProductFilter}
+                  </span>
+                )}
+                {activeFirm && (
+                  <span className="bg-indigo-100 text-indigo-800 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Building className="w-3 h-3" /> {activeFirm.name}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Check exactly who purchased each item, quantities sold, rates, and payment methods.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {(selectedProductFilter !== 'ALL' || productSearchQuery || buyerSearchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProductFilter('ALL');
+                    setProductSearchQuery('');
+                    setBuyerSearchQuery('');
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  title="Reset all search filters"
+                >
+                  <X className="w-3.5 h-3.5" /> Clear Filters
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleExportItemSalesCsv}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Export to Excel / CSV
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Product Dropdown */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-blue-600" /> Select Product
+                </label>
+                <select
+                  value={selectedProductFilter}
+                  onChange={(e) => setSelectedProductFilter(e.target.value)}
+                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+                >
+                  <option value="ALL">📦 All Products ({availableProductOptions.length})</option>
+                  {availableProductOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Product Keyword Search */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <Search className="w-3 h-3 text-indigo-600" /> Search Product Name
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    placeholder="e.g. SIM, Charger, Display..."
+                    className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  {productSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Buyer / Customer Name Search */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <Users className="w-3 h-3 text-emerald-600" /> Search Buyer / Customer
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={buyerSearchQuery}
+                    onChange={(e) => setBuyerSearchQuery(e.target.value)}
+                    placeholder="e.g. Drashya Mobile, Ramesh..."
+                    className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  {buyerSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setBuyerSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Product Filter Chips */}
+            {availableProductOptions.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none text-[11px]">
+                <span className="text-slate-400 font-bold flex items-center gap-1 whitespace-nowrap">
+                  <Filter className="w-3 h-3" /> Quick Filter:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProductFilter('ALL')}
+                  className={`px-2 py-0.5 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                    selectedProductFilter === 'ALL'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All ({allItemSaleRecords.length})
+                </button>
+                {availableProductOptions.slice(0, 8).map((pName) => (
+                  <button
+                    key={pName}
+                    type="button"
+                    onClick={() => setSelectedProductFilter(pName)}
+                    className={`px-2 py-0.5 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                      selectedProductFilter.toLowerCase() === pName.toLowerCase()
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {pName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
+                Total Quantity Sold
+              </span>
+              <div className="text-xl md:text-2xl font-black text-slate-800 mt-0.5">
+                {itemSalesSummary.totalQty.toLocaleString()}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                across {itemSalesSummary.count} sale lines
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
+                Total Sales Revenue
+              </span>
+              <div className="text-xl md:text-2xl font-black text-emerald-600 mt-0.5">
+                {formatCurrency(itemSalesSummary.totalAmount)}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                from filtered sales
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
+                Unique Buyers
+              </span>
+              <div className="text-xl md:text-2xl font-black text-blue-600 mt-0.5">
+                {itemSalesSummary.uniqueBuyers}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                distinct customers
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
+                Average Selling Price
+              </span>
+              <div className="text-xl md:text-2xl font-black text-indigo-600 mt-0.5">
+                {formatCurrency(itemSalesSummary.avgRate)}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                average rate per unit
+              </span>
+            </div>
+          </div>
+
+          {/* Detailed Item Sales Ledger Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Bill / Voucher</th>
+                    <th className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => setItemSalesSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+                        className="flex items-center gap-1.5 font-bold uppercase hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Click to toggle sorting"
+                      >
+                        <span>Date</span>
+                        <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-sm">
+                          {itemSalesSortOrder === 'NEWEST_FIRST' ? '↓ Latest' : '↑ Oldest'}
+                        </span>
+                      </button>
+                    </th>
+                    <th className="p-3">Product / Item</th>
+                    <th className="p-3">Buyer (Customer)</th>
+                    <th className="p-3">Firm</th>
+                    <th className="p-3 text-right">Quantity</th>
+                    <th className="p-3 text-right">Rate</th>
+                    <th className="p-3 text-right">Line Total</th>
+                    <th className="p-3 text-center">Payment / Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredItemSaleRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-slate-400">
+                        <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="font-bold text-slate-700 text-sm">No product sales match your current filters.</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Try changing the product, clearing search queries, or expanding the date filter range.
+                        </p>
+                        {(selectedProductFilter !== 'ALL' || productSearchQuery || buyerSearchQuery) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductFilter('ALL');
+                              setProductSearchQuery('');
+                              setBuyerSearchQuery('');
+                            }}
+                            className="mt-3 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredItemSaleRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono font-bold text-blue-600 whitespace-nowrap">
+                          {r.voucherNumber}
+                        </td>
+                        <td className="p-3 text-slate-500 whitespace-nowrap">
+                          {formatDate(r.date)}
+                        </td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProductFilter(r.itemName)}
+                            className="font-bold text-slate-800 hover:text-blue-600 hover:underline text-left cursor-pointer flex items-center gap-1.5"
+                            title="Click to isolate sales of this item"
+                          >
+                            <Tag className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span>{r.itemName}</span>
+                          </button>
+                        </td>
+                        <td className="p-3">
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setBuyerSearchQuery(r.partyName)}
+                              className="font-bold text-slate-800 hover:text-indigo-600 hover:underline text-left cursor-pointer flex items-center gap-1"
+                              title="Click to filter all purchases by this buyer"
+                            >
+                              <Users className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{r.partyName}</span>
+                            </button>
+                            {r.phone && (
+                              <a
+                                href={`tel:${r.phone}`}
+                                className="text-[10px] text-slate-400 hover:text-blue-600 inline-flex items-center gap-1 mt-0.5"
+                              >
+                                <PhoneCall className="w-2.5 h-2.5" />
+                                {r.phone}
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1 ${
+                            r.firmName?.toLowerCase().includes('shadab') 
+                              ? 'bg-indigo-100 text-indigo-800' 
+                              : r.firmName?.toLowerCase().includes('krishi')
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            <Building className="w-2.5 h-2.5" />
+                            {r.firmName || 'Main'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-black text-slate-900 whitespace-nowrap">
+                          {r.quantity} {r.unit}
+                        </td>
+                        <td className="p-3 text-right text-slate-600 whitespace-nowrap">
+                          {formatCurrency(r.rate)}
+                        </td>
+                        <td className="p-3 text-right font-black text-emerald-600 whitespace-nowrap">
+                          {formatCurrency(r.total)}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">
+                              {r.paymentMode}
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase ${
+                              r.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
+                              r.paymentStatus === 'UNPAID' ? 'bg-rose-100 text-rose-800' :
+                              'bg-amber-100 text-amber-800'
+                            }`}>
+                              {r.paymentStatus || 'PAID'}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1750,6 +2327,7 @@ export const Reports: React.FC<ReportsProps> = ({
                     <th className="p-3 text-right">Sale Rate</th>
                     <th className="p-3 text-right">Total Valuation</th>
                     <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -1778,6 +2356,20 @@ export const Reports: React.FC<ReportsProps> = ({
                               ✓ In Stock
                             </span>
                           )}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductFilter(it.name);
+                              setReportTab('item_sales');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            title={`View buyer history for ${it.name}`}
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Buyers</span>
+                          </button>
                         </td>
                       </tr>
                     );
