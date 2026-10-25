@@ -290,6 +290,11 @@ export async function initializeDatabase() {
         createdAt: new Date().toISOString(),
       });
     }
+    // Re-tally all existing parties on launch
+    const existingParties = await db.parties.toArray();
+    for (const p of existingParties) {
+      if (p.id) await updatePartyBalance(p.id);
+    }
     return;
   }
 }
@@ -299,29 +304,25 @@ export async function updatePartyBalance(partyId: number) {
   if (!party) return;
 
   const txs = await db.transactions.where('partyId').equals(partyId).toArray();
-  let balance = party.openingBalance;
+  let balance = party.openingBalance || 0;
 
   for (const tx of txs) {
-    if (party.partyType === 'CUSTOMER') {
-      if (tx.type === 'SALE') {
-        const netDue = tx.amount - (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0));
-        balance += netDue;
-      } else if (tx.type === 'PAYMENT_IN') {
-        balance -= tx.amount;
-      } else if (tx.type === 'CREDIT_NOTE') {
-        // Customer return reduces customer's balance due
-        balance -= tx.amount;
-      }
-    } else {
-      if (tx.type === 'PURCHASE') {
-        const netDue = tx.amount - (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0));
-        balance -= netDue;
-      } else if (tx.type === 'PAYMENT_OUT') {
-        balance += tx.amount;
-      } else if (tx.type === 'DEBIT_NOTE') {
-        // Purchase return reduces what we owe the supplier
-        balance += tx.amount;
-      }
+    if (tx.type === 'SALE') {
+      const netDue = tx.amount - (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0));
+      balance += netDue;
+    } else if (tx.type === 'PAYMENT_IN') {
+      balance -= tx.amount;
+    } else if (tx.type === 'CREDIT_NOTE') {
+      // Return reduces customer balance due
+      balance -= tx.amount;
+    } else if (tx.type === 'PURCHASE') {
+      const netDue = tx.amount - (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'PAID' ? tx.amount : 0));
+      balance -= netDue;
+    } else if (tx.type === 'PAYMENT_OUT') {
+      balance += tx.amount;
+    } else if (tx.type === 'DEBIT_NOTE') {
+      // Purchase return reduces what we owe the supplier
+      balance += tx.amount;
     }
   }
 

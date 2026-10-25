@@ -269,20 +269,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   }, [parties, partyId]);
 
   const filteredParties = useMemo(() => {
-    const list = parties
-      .filter((p) => p.partyType === targetPartyType)
-      .sort((a, b) => a.name.localeCompare(b.name));
-
     const isExactSelected = selectedParty && partySearchText.trim().toLowerCase() === selectedParty.name.toLowerCase();
     if (!partySearchText.trim() || isExactSelected) {
-      return list;
+      return parties
+        .filter((p) => p.partyType === targetPartyType)
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
     const q = partySearchText.toLowerCase().trim();
-    return list.filter((p) =>
-      p.name.toLowerCase().includes(q) ||
-      (p.phone && p.phone.includes(q)) ||
-      (p.accountCode && p.accountCode.toLowerCase().includes(q))
-    );
+    return [...parties]
+      .filter((p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.phone && p.phone.includes(q)) ||
+        (p.accountCode && p.accountCode.toLowerCase().includes(q))
+      )
+      .sort((a, b) => {
+        if (a.partyType === targetPartyType && b.partyType !== targetPartyType) return -1;
+        if (a.partyType !== targetPartyType && b.partyType === targetPartyType) return 1;
+        return a.name.localeCompare(b.name);
+      });
   }, [parties, targetPartyType, partySearchText, selectedParty]);
 
   const digitalBankAccounts = useMemo(() => {

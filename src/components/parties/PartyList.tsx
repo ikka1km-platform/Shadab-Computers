@@ -95,12 +95,12 @@ export const PartyList: React.FC<PartyListProps> = ({
       let matchesType = true;
       if (filterType === 'CUSTOMER') matchesType = p.partyType === 'CUSTOMER';
       else if (filterType === 'SUPPLIER') matchesType = p.partyType === 'SUPPLIER';
-      else if (filterType === 'RECEIVABLE') matchesType = p.partyType === 'CUSTOMER' && p.currentBalance > 0;
-      else if (filterType === 'PAYABLE') matchesType = p.partyType === 'SUPPLIER' && p.currentBalance < 0;
+      else if (filterType === 'RECEIVABLE') matchesType = p.currentBalance > 0;
+      else if (filterType === 'PAYABLE') matchesType = p.currentBalance < 0;
 
       let matchesFirm = true;
       if (selectedFirmId !== 'ALL') {
-        matchesFirm = p.firmId === Number(selectedFirmId);
+        matchesFirm = !p.firmId || p.firmId === Number(selectedFirmId);
       }
 
       const matchesSearch =
@@ -121,11 +121,11 @@ export const PartyList: React.FC<PartyListProps> = ({
     });
 
   const totalReceivables = parties
-    .filter((p) => p.partyType === 'CUSTOMER' && p.currentBalance > 0)
+    .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance > 0)
     .reduce((sum, p) => sum + p.currentBalance, 0);
 
   const totalPayables = parties
-    .filter((p) => p.partyType === 'SUPPLIER' && p.currentBalance < 0)
+    .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0)
     .reduce((sum, p) => sum + Math.abs(p.currentBalance), 0);
 
   return (
@@ -250,7 +250,7 @@ export const PartyList: React.FC<PartyListProps> = ({
               filterType === 'CUSTOMER' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'
             }`}
           >
-            All Customers ({parties.filter((p) => p.partyType === 'CUSTOMER').length})
+            All Customers ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.partyType === 'CUSTOMER').length})
           </button>
           <button
             onClick={() => setFilterType('RECEIVABLE')}
@@ -258,7 +258,7 @@ export const PartyList: React.FC<PartyListProps> = ({
               filterType === 'RECEIVABLE' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'
             }`}
           >
-            Receivables Only ({parties.filter((p) => p.partyType === 'CUSTOMER' && p.currentBalance > 0).length})
+            Receivables Only ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance > 0).length})
           </button>
           {isSupplierFinancesAllowed && (
             <>
@@ -268,7 +268,7 @@ export const PartyList: React.FC<PartyListProps> = ({
                   filterType === 'SUPPLIER' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'
                 }`}
               >
-                Suppliers ({parties.filter((p) => p.partyType === 'SUPPLIER').length})
+                Suppliers ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.partyType === 'SUPPLIER').length})
               </button>
               <button
                 onClick={() => setFilterType('PAYABLE')}
@@ -276,7 +276,7 @@ export const PartyList: React.FC<PartyListProps> = ({
                   filterType === 'PAYABLE' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600'
                 }`}
               >
-                Payables Only ({parties.filter((p) => p.partyType === 'SUPPLIER' && p.currentBalance < 0).length})
+                Payables Only ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0).length})
               </button>
             </>
           )}
@@ -286,7 +286,7 @@ export const PartyList: React.FC<PartyListProps> = ({
               filterType === 'ALL' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'
             }`}
           >
-            All ({parties.length})
+            All ({parties.filter((p) => selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)).length})
           </button>
         </div>
 

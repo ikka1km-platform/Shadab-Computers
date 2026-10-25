@@ -247,47 +247,46 @@ export const PartyModal: React.FC<PartyModalProps> = ({
             </div>
           </div>
 
-          {!partyToEdit && (
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                Opening Balance
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={openingBalance || ''}
-                    onChange={(e) => setOpeningBalance(parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="w-full pl-8 pr-3 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  />
-                </div>
-                <div className="flex gap-1 bg-white border border-slate-300 p-0.5 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setBalanceType('RECEIVE')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-                      balanceType === 'RECEIVE' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    To Receive
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBalanceType('PAY')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-                      balanceType === 'PAY' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    To Pay
-                  </button>
-                </div>
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+              {partyToEdit ? 'Adjust Opening Balance' : 'Opening Balance'}
+              {partyToEdit && <span className="text-[10px] text-slate-500 font-normal ml-2 lowercase">(auto-updates ledger balance)</span>}
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={openingBalance || ''}
+                  onChange={(e) => setOpeningBalance(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-2 text-sm font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                />
+              </div>
+              <div className="flex gap-1 bg-white border border-slate-300 p-0.5 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setBalanceType('RECEIVE')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                    balanceType === 'RECEIVE' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  To Receive
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBalanceType('PAY')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                    balanceType === 'PAY' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  To Pay
+                </button>
               </div>
             </div>
-          )}
+          </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
             {partyToEdit && partyToEdit.id && onDelete ? (

@@ -59,11 +59,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
     : parties.filter((p) => !p.firmId || p.firmId === Number(selectedFirmId));
 
   const totalReceivable = firmParties
-    .filter((p) => p.partyType === 'CUSTOMER' && p.currentBalance > 0)
+    .filter((p) => p.currentBalance > 0)
     .reduce((acc, p) => acc + p.currentBalance, 0);
 
   const totalPayable = firmParties
-    .filter((p) => p.partyType === 'SUPPLIER' && p.currentBalance < 0)
+    .filter((p) => p.currentBalance < 0)
     .reduce((acc, p) => acc + Math.abs(p.currentBalance), 0);
 
   const recentTransactions = [...firmTxs]
@@ -186,7 +186,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="mt-2 sm:mt-3">
               <div className="text-base sm:text-lg md:text-2xl font-black text-rose-700">{formatCurrency(totalPayable)}</div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 group-hover:text-rose-800 font-medium">
-                👉 Supplier Payables
+                👉 Payables (To Pay)
               </p>
             </div>
           </div>

@@ -222,17 +222,17 @@ export const Reports: React.FC<ReportsProps> = ({
   // Receivables & Payables
   const debtors = useMemo(() => {
     return parties
-      .filter((p) => p.partyType === 'CUSTOMER' && p.currentBalance > 0)
+      .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance > 0)
       .sort((a, b) => b.currentBalance - a.currentBalance);
-  }, [parties]);
+  }, [parties, selectedFirmId]);
 
   const totalReceivables = debtors.reduce((sum, p) => sum + p.currentBalance, 0);
 
   const creditors = useMemo(() => {
     return parties
-      .filter((p) => p.partyType === 'SUPPLIER' && p.currentBalance < 0)
+      .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0)
       .sort((a, b) => Math.abs(b.currentBalance) - Math.abs(a.currentBalance));
-  }, [parties]);
+  }, [parties, selectedFirmId]);
 
   const totalPayables = creditors.reduce((sum, p) => sum + Math.abs(p.currentBalance), 0);
 
