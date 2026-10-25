@@ -32,10 +32,10 @@ export async function generateDenominationJPEG({
     ? firmName 
     : 'All Firms Consolidated';
 
-  // Base canvas configuration
-  const width = 880;
-  const paddingX = 40;
-  const cardWidth = width - paddingX * 2; // 800px
+  // Base canvas configuration - Clean vertical portrait format
+  const width = 480;
+  const paddingX = 16;
+  const cardWidth = width - paddingX * 2; // 448px
 
   // 1. Prepare filtered non-zero denomination rows (omit any note with 0 count)
   const allDenomRows = [
@@ -58,10 +58,10 @@ export async function generateDenominationJPEG({
     { label: 'No Physical Notes Counted', badge: '₹0', count: 0, subtotal: 0, badgeBg: '#f1f5f9', badgeBorder: '#cbd5e1', badgeText: '#64748b' }
   ];
 
-  // Calculate dynamic canvas height strictly for summary + non-zero rows + signatures (no receipt log in JPG)
-  const height = 630 + denomRows.length * 36;
+  // Calculate dynamic canvas height strictly for summary + non-zero rows + signatures in vertical orientation
+  const height = 480 + denomRows.length * 32;
 
-  // Use 2x DPR for ultra-crisp text rendering (WhatsApp & printing ready)
+  // Use 2x DPR for ultra-crisp text rendering (WhatsApp & mobile ready)
   const scale = 2;
   const canvas = document.createElement('canvas');
   canvas.width = width * scale;
@@ -103,14 +103,14 @@ export async function generateDenominationJPEG({
 
   // 2. Main White Container Card
   const cardX = paddingX;
-  const cardY = 30;
-  const cardH = height - 60;
+  const cardY = 20;
+  const cardH = height - 40;
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
-  ctx.shadowBlur = 20;
+  ctx.shadowBlur = 16;
   ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 8;
-  roundRect(cardX, cardY, cardWidth, cardH, 20, true, false);
+  ctx.shadowOffsetY = 6;
+  roundRect(cardX, cardY, cardWidth, cardH, 16, true, false);
   ctx.shadowColor = 'transparent'; // reset shadow
 
   let curY = cardY;
@@ -118,147 +118,132 @@ export async function generateDenominationJPEG({
   // 3. Top Header Banner (Slate-900)
   ctx.save();
   ctx.beginPath();
-  ctx.moveTo(cardX + 20, curY);
-  ctx.lineTo(cardX + cardWidth - 20, curY);
-  ctx.quadraticCurveTo(cardX + cardWidth, curY, cardX + cardWidth, curY + 20);
-  ctx.lineTo(cardX + cardWidth, curY + 95);
-  ctx.lineTo(cardX, curY + 95);
-  ctx.lineTo(cardX, curY + 20);
-  ctx.quadraticCurveTo(cardX, curY, cardX + 20, curY);
+  ctx.moveTo(cardX + 16, curY);
+  ctx.lineTo(cardX + cardWidth - 16, curY);
+  ctx.quadraticCurveTo(cardX + cardWidth, curY, cardX + cardWidth, curY + 16);
+  ctx.lineTo(cardX + cardWidth, curY + 76);
+  ctx.lineTo(cardX, curY + 76);
+  ctx.lineTo(cardX, curY + 16);
+  ctx.quadraticCurveTo(cardX, curY, cardX + 16, curY);
   ctx.closePath();
   ctx.clip();
 
   ctx.fillStyle = '#0f172a'; // slate-900
-  ctx.fillRect(cardX, curY, cardWidth, 95);
+  ctx.fillRect(cardX, curY, cardWidth, 76);
 
   // Business Name
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(profile.businessName || 'MY BUSINESS FIRM', cardX + 30, curY + 40);
+  ctx.font = 'bold 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(profile.businessName || 'MY BUSINESS FIRM', cardX + 20, curY + 34);
 
   // Subtitle / Address / Phone / GSTIN
   ctx.fillStyle = '#94a3b8'; // slate-400
-  ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   const addressLine = profile.address ? `${profile.address} • ` : '';
   const phoneLine = profile.phone ? `Ph: ${profile.phone}` : '';
   const gstinLine = profile.gstin ? ` • GSTIN: ${profile.gstin}` : '';
-  ctx.fillText(`${addressLine}${phoneLine}${gstinLine}`, cardX + 30, curY + 68);
+  const infoText = `${addressLine}${phoneLine}${gstinLine}`;
+  ctx.fillText(infoText.length > 55 ? `${infoText.slice(0, 52)}...` : infoText, cardX + 20, curY + 56);
   ctx.restore();
 
-  curY += 95;
+  curY += 76;
 
   // 4. Firm Name & Date Banner (Indigo Accent Bar)
   ctx.fillStyle = '#4338ca'; // indigo-700
-  ctx.fillRect(cardX, curY, cardWidth, 44);
+  ctx.fillRect(cardX, curY, cardWidth, 34);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`🏢 FIRM / DESK: ${displayFirm.toUpperCase()}`, cardX + 30, curY + 28);
+  ctx.font = 'bold 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`🏢 ${displayFirm.toUpperCase()}`, cardX + 20, curY + 22);
 
   ctx.fillStyle = '#e0e7ff'; // indigo-100
-  ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const dateLabel = selectedDate === 'ALL' ? 'ALL DATES (CONSOLIDATED)' : formatDate(selectedDate).toUpperCase();
+  ctx.font = 'bold 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const dateLabel = selectedDate === 'ALL' ? 'ALL DATES' : formatDate(selectedDate).toUpperCase();
   const dateStr = `DATE: ${dateLabel}`;
-  const dateWidth = ctx.measureText(dateStr).width;
-  ctx.fillText(dateStr, cardX + cardWidth - 30 - dateWidth, curY + 28);
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, cardX + cardWidth - 20, curY + 22);
 
-  curY += 44;
+  curY += 34;
 
   // 5. Document Title
-  curY += 25;
-  ctx.fillStyle = '#1e293b'; // slate-800
-  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('CURRENCY DENOMINATION & NOTE RE-TALLY SHEET', cardX + 30, curY);
-
   curY += 18;
+  ctx.fillStyle = '#1e293b'; // slate-800
+  ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('CURRENCY DENOMINATION RE-TALLY SHEET', cardX + 20, curY);
+
+  curY += 15;
   ctx.fillStyle = '#64748b'; // slate-500
-  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const subtitleDate = selectedDate === 'ALL' ? 'all recorded dates' : formatDate(selectedDate);
+  ctx.font = '10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const subtitleDate = selectedDate === 'ALL' ? 'all recorded transactions' : formatDate(selectedDate);
   ctx.fillText(
-    `Official note piece count report generated for ${displayFirm} on ${subtitleDate}`,
-    cardX + 30,
+    `Physical note count verified for deposit on ${subtitleDate}`,
+    cardX + 20,
     curY
   );
 
-  // 6. Top Summary KPI Cards (Side-by-side)
-  curY += 20;
-  const kpiW = (cardWidth - 60 - 20) / 2;
-  const kpiH = 92;
+  // 6. Total Physical Cash Deposit Card (Single Compact Vertical Summary Card)
+  curY += 15;
+  const tableX = cardX + 16;
+  const tableW = cardWidth - 32; // 416px
+  const summaryH = 74;
 
-  // KPI 1: Total Physical Cash (Emerald Card)
   ctx.fillStyle = '#ecfdf5'; // emerald-50
   ctx.strokeStyle = '#a7f3d0'; // emerald-200
-  ctx.lineWidth = 1.5;
-  roundRect(cardX + 30, curY, kpiW, kpiH, 14, true, true);
+  ctx.lineWidth = 1.2;
+  roundRect(tableX, curY, tableW, summaryH, 10, true, true);
 
+  // Top Line: Label on left, total notes on right
   ctx.fillStyle = '#065f46'; // emerald-800
-  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('TOTAL PHYSICAL CASH TO DEPOSIT', cardX + 45, curY + 26);
-
-  ctx.fillStyle = '#047857'; // emerald-700
-  ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(formatCurrency(totalDenoms.totalAmount || 0), cardX + 45, curY + 56);
-
-  ctx.fillStyle = '#065f46';
-  ctx.font = 'italic 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const words = numberToWordsINR(totalDenoms.totalAmount || 0);
-  ctx.fillText(words.length > 45 ? `${words.slice(0, 42)}...` : words, cardX + 45, curY + 76);
-
-  // KPI 2: Total Notes Counted (Blue Card)
-  const kpi2X = cardX + 30 + kpiW + 20;
-  ctx.fillStyle = '#eff6ff'; // blue-50
-  ctx.strokeStyle = '#bfdbfe'; // blue-200
-  roundRect(kpi2X, curY, kpiW, kpiH, 14, true, true);
-
-  ctx.fillStyle = '#1e40af'; // blue-800
-  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('TOTAL CURRENCY NOTES COUNTED', kpi2X + 15, curY + 26);
-
-  ctx.fillStyle = '#1d4ed8'; // blue-700
-  ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`${totalDenoms.totalNotes || 0} Pieces`, kpi2X + 15, curY + 56);
-
-  ctx.fillStyle = '#1e40af';
-  ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(
-    `Loose Coins: ${formatCurrency(totalDenoms.coins || 0)}  |  ${cashTransactions.length} Receipts`,
-    kpi2X + 15,
-    curY + 76
-  );
-
-  curY += kpiH + 25;
-
-  // 7. Denomination Sheet Table
-  const tableX = cardX + 30;
-  const tableW = cardWidth - 60;
-  const colXDenom = tableX + 20;
-  const colXCount = tableX + 320;
-  const colXSubtotal = tableX + 570;
-  const colXShare = tableX + tableW - 25;
-
-  // Table Header
-  const thH = 38;
-  ctx.fillStyle = '#334155'; // slate-700
-  roundRect(tableX, curY, tableW, thH, 8, true, false);
-
-  ctx.fillStyle = '#f8fafc'; // slate-50
-  ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('DENOMINATION VALUE', colXDenom, curY + 24);
-
-  ctx.textAlign = 'center';
-  ctx.fillText('PIECE / NOTE COUNT', colXCount, curY + 24);
+  ctx.fillText('TOTAL PHYSICAL CASH TO DEPOSIT', tableX + 14, curY + 20);
 
   ctx.textAlign = 'right';
-  ctx.fillText('CALCULATED SUBTOTAL (₹)', colXSubtotal, curY + 24);
-  ctx.fillText('SHARE %', colXShare, curY + 24);
+  ctx.fillText(`${totalDenoms.totalNotes || 0} Pieces Counted`, tableX + tableW - 14, curY + 20);
+
+  // Main Amount
+  ctx.fillStyle = '#047857'; // emerald-700
+  ctx.font = '900 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(formatCurrency(totalDenoms.totalAmount || 0), tableX + 14, curY + 45);
+
+  // Amount in words
+  ctx.fillStyle = '#065f46';
+  ctx.font = 'italic 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const words = numberToWordsINR(totalDenoms.totalAmount || 0);
+  const wordsText = words.length > 50 ? `${words.slice(0, 48)}...` : words;
+  ctx.fillText(wordsText, tableX + 14, curY + 63);
+
+  curY += summaryH + 16;
+
+  // 7. Denomination Sheet Table (Compact 3 Columns: Value, Count, Subtotal - NO Share %)
+  const colXDenom = tableX + 14;
+  const colXCount = tableX + Math.round(tableW * 0.55);
+  const colXSubtotal = tableX + tableW - 14;
+
+  // Table Header
+  const thH = 32;
+  ctx.fillStyle = '#334155'; // slate-700
+  roundRect(tableX, curY, tableW, thH, 6, true, false);
+
+  ctx.fillStyle = '#f8fafc'; // slate-50
+  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('DENOMINATION', colXDenom, curY + 20);
+
+  ctx.textAlign = 'center';
+  ctx.fillText('NOTE COUNT', colXCount, curY + 20);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('SUBTOTAL (₹)', colXSubtotal, curY + 20);
 
   curY += thH;
 
-  const totalAmt = totalDenoms.totalAmount || 1;
-
   denomRows.forEach((row, idx) => {
-    const rowH = 36;
+    const rowH = 32;
     const isEven = idx % 2 === 0;
 
     // Row Background
@@ -276,100 +261,90 @@ export async function generateDenominationJPEG({
     // Denomination Badge
     ctx.fillStyle = row.badgeBg;
     ctx.strokeStyle = row.badgeBorder;
-    roundRect(colXDenom, curY + 7, 44, 22, 6, true, true);
+    roundRect(colXDenom, curY + 6, 38, 20, 4, true, true);
 
     ctx.fillStyle = row.badgeText;
-    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(row.badge, colXDenom + 22, curY + 22);
+    ctx.fillText(row.badge, colXDenom + 19, curY + 19);
 
     // Label
     ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(row.label, colXDenom + 54, curY + 23);
+    ctx.fillText(row.label, colXDenom + 46, curY + 20);
 
     // Piece / Note count
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 14px "Courier New", Courier, monospace';
+    ctx.font = 'bold 13px "Courier New", Courier, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(String(row.count), colXCount, curY + 23);
+    ctx.fillText(String(row.count), colXCount, curY + 20);
 
     // Subtotal
     ctx.fillStyle = '#047857'; // emerald-700
-    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(formatCurrency(row.subtotal), colXSubtotal, curY + 23);
-
-    // Share Percentage
-    const pct = totalAmt > 0 ? ((row.subtotal / totalAmt) * 100).toFixed(1) : '0.0';
-    ctx.fillStyle = '#64748b';
-    ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${pct}%`, colXShare, curY + 23);
+    ctx.fillText(formatCurrency(row.subtotal), colXSubtotal, curY + 20);
 
     curY += rowH;
   });
 
   // Table Grand Total Row
-  const totalRowH = 44;
+  const totalRowH = 38;
   ctx.fillStyle = '#ecfdf5'; // emerald-50
   ctx.strokeStyle = '#10b981'; // emerald-500
-  ctx.lineWidth = 2;
-  roundRect(tableX, curY, tableW, totalRowH, 8, true, true);
+  ctx.lineWidth = 1.5;
+  roundRect(tableX, curY, tableW, totalRowH, 6, true, true);
 
   ctx.fillStyle = '#064e3b'; // emerald-950
-  ctx.font = '900 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '900 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(`GRAND TOTAL CASH (${displayFirm.toUpperCase()})`, colXDenom, curY + 27);
+  ctx.fillText('GRAND TOTAL CASH', colXDenom, curY + 24);
 
-  ctx.font = '900 15px "Courier New", Courier, monospace';
+  ctx.font = 'bold 13px "Courier New", Courier, monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(`${totalDenoms.totalNotes || 0} Notes`, colXCount, curY + 27);
+  ctx.fillText(`${totalDenoms.totalNotes || 0} Notes`, colXCount, curY + 24);
 
   ctx.fillStyle = '#047857';
-  ctx.font = '900 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '900 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(formatCurrency(totalDenoms.totalAmount || 0), colXSubtotal, curY + 28);
+  ctx.fillText(formatCurrency(totalDenoms.totalAmount || 0), colXSubtotal, curY + 24);
 
-  ctx.fillStyle = '#064e3b';
-  ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('100.0%', colXShare, curY + 27);
-
-  curY += totalRowH + 35;
+  curY += totalRowH + 28;
 
   // 8. Signatures Block
-  const sigLineW = 180;
+  const sigLineW = 120;
 
   // Cashier signature
+  const sigLeftX = tableX + 10;
   ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(tableX + 20, curY);
-  ctx.lineTo(tableX + 20 + sigLineW, curY);
+  ctx.moveTo(sigLeftX, curY);
+  ctx.lineTo(sigLeftX + sigLineW, curY);
   ctx.stroke();
 
   ctx.fillStyle = '#64748b';
-  ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Cashier / Counter In-Charge', tableX + 20 + sigLineW / 2, curY + 18);
+  ctx.fillText('Cashier / In-Charge', sigLeftX + sigLineW / 2, curY + 16);
 
   // Bank Verifier / Manager signature
-  const sigRightX = tableX + tableW - 20 - sigLineW;
+  const sigRightX = tableX + tableW - 10 - sigLineW;
   ctx.beginPath();
   ctx.moveTo(sigRightX, curY);
   ctx.lineTo(sigRightX + sigLineW, curY);
   ctx.stroke();
 
-  ctx.fillText('Manager / Bank Verification Seal', sigRightX + sigLineW / 2, curY + 18);
+  ctx.fillText('Manager / Bank Seal', sigRightX + sigLineW / 2, curY + 16);
 
-  // 10. Watermark Footer
-  curY += 45;
+  // 9. Watermark Footer
+  curY += 38;
   ctx.fillStyle = '#94a3b8';
-  ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(
-    `Verified & Tallied with Vyapar Plus Desktop & Android App • Generated on ${formatDateTime(new Date().toISOString())}`,
+    `Verified with Vyapar Plus • Generated on ${formatDateTime(new Date().toISOString())}`,
     cardX + cardWidth / 2,
     curY
   );
