@@ -1,4 +1,4 @@
-import { PlusCircle, Settings, Building2, Landmark, RefreshCw, Lock, Printer, Users2, Globe2, ShieldCheck, User, Tablet, Cloud, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { PlusCircle, Settings, Building2, Landmark, RefreshCw, Lock, Printer, Users2, Globe2, ShieldCheck, User, Tablet, Cloud, AlertTriangle, ArrowLeft, Watch } from 'lucide-react';
 import { BusinessProfile, CloudConnectionStatus } from '../../types';
 import { useThermalPrinters } from '../../utils/printerStorage';
 import { UserSession } from '../../utils/userSession';
@@ -17,6 +17,7 @@ interface NavbarProps {
   onOpenNewCompany?: () => void;
   onLockApp?: () => void;
   onEnterShowroomMode?: () => void;
+  onToggleWatchMode?: () => void;
   isPinEnabled?: boolean;
   onOpenCloudSync?: () => void;
   unresolvedConflictsCount?: number;
@@ -40,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewCompany,
   onLockApp,
   onEnterShowroomMode,
+  onToggleWatchMode,
   isPinEnabled,
   onOpenCloudSync,
   unresolvedConflictsCount = 0,
@@ -147,6 +149,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-black/10">
                 {activeSession.role}
               </span>
+            </button>
+          )}
+
+          {onToggleWatchMode && (
+            <button
+              type="button"
+              onClick={onToggleWatchMode}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title="Smartwatch Wrist Collection Mode"
+            >
+              <Watch className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden md:inline">Watch Mode</span>
             </button>
           )}
 
@@ -297,6 +311,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Row 2 (Mobile only): Quick Switches Utility Strip - ALL SWITCHES FIT IN ONE SCREEN */}
       <div className="flex md:hidden items-center justify-around px-2 py-1 bg-slate-50/90 border-t border-slate-200/80 text-slate-600">
+        {onToggleWatchMode && (
+          <button
+            type="button"
+            onClick={onToggleWatchMode}
+            className="p-2 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer active:scale-90"
+            title="Smartwatch Wrist Collection Mode"
+          >
+            <Watch className="w-4 h-4 text-amber-600" />
+          </button>
+        )}
+
         {onEnterShowroomMode && (
           <button
             type="button"

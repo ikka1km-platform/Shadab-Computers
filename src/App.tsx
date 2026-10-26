@@ -40,6 +40,7 @@ import { authenticateFirmOnCloud, downloadCloudVault, hydrateDexieWithCloudVault
 import { useBackNavigation, BackGestureFeedbackOverlay } from './utils/backNavigation';
 import { FloatingActionBar } from './components/common/FloatingActionBar';
 import { DailyDebtorsPdfModal } from './components/importer/DailyDebtorsPdfModal';
+import { WatchCollectionMode } from './components/watch/WatchCollectionMode';
 import { SplitScreenRecoveryQueueModal } from './components/reminders/SplitScreenRecoveryQueueModal';
 import { Lock, Tablet } from 'lucide-react';
 
@@ -51,6 +52,16 @@ export const App: React.FC = () => {
   // One-Time Mobile Login Verification State (Vyapar Style)
   const [isMobileLoggedIn, setIsMobileLoggedIn] = useState<boolean>(() => {
     return isUserMobileLoggedIn();
+  });
+
+  // Standalone Wrist Watch Mode for GS29 Android 8.1.0 Smartwatch
+  const [isWatchMode, setIsWatchMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('vyapar_wrist_watch_mode');
+      if (stored !== null) return stored === 'true';
+      return (window.innerWidth <= 480 && window.innerWidth > 0) || (window.innerHeight <= 480 && window.innerHeight > 0);
+    }
+    return false;
   });
 
   const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
@@ -836,6 +847,28 @@ export const App: React.FC = () => {
     }
   };
 
+  // Standalone Wrist Watch Mode for Android Smartwatches (GS29 / 8.1.0)
+  if (isWatchMode) {
+    return (
+      <WatchCollectionMode
+        parties={parties}
+        transactions={transactions}
+        profile={profile}
+        firms={firms}
+        bankAccounts={bankAccounts}
+        selectedFirmId={selectedFirmId}
+        onChangeFirm={(fid) => setSelectedFirmId(fid)}
+        onSaveTx={handleSaveTx}
+        onExitWatchMode={() => {
+          setIsWatchMode(false);
+          localStorage.setItem('vyapar_wrist_watch_mode', 'false');
+        }}
+        onManualSync={handleManualSync}
+        isSyncing={isSyncingCloud}
+      />
+    );
+  }
+
   // 1. One-Time Mobile Login Verification (Vyapar Style)
   if (!isMobileLoggedIn) {
     return (
@@ -922,6 +955,10 @@ export const App: React.FC = () => {
           onOpenPrinterSettings={() => setIsPrinterManagerOpen(true)}
           onOpenTeamSync={() => navigateToTab('team')}
           onEnterShowroomMode={handleEnterKioskMode}
+          onToggleWatchMode={() => {
+            setIsWatchMode(true);
+            localStorage.setItem('vyapar_wrist_watch_mode', 'true');
+          }}
           isPinEnabled={Boolean(profile?.isPinLockEnabled && profile?.securityPin)}
           onLockApp={() => {
             sessionStorage.removeItem('vyapar_unlocked');

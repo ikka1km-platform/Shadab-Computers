@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    target: ['chrome65', 'es2018'],
+  },
   server: {
     watch: {
       ignored: ['**/android/**', '**/dist/**', '**/*.apk'],
