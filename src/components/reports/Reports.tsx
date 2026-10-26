@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { Party, Transaction, Item, BusinessProfile, Firm, BankAccount } from '../../types';
 import { formatCurrency, formatDate, compareTransactionsDesc } from '../../utils/formatters';
+import { isCashAccount } from '../../db/db';
 import { exportToCsv } from '../../utils/exportToCsv';
 import { DenominationReport } from './DenominationReport';
 import { PaymentReminderModal } from '../reminders/PaymentReminderModal';
@@ -244,9 +245,16 @@ export const Reports: React.FC<ReportsProps> = ({
   // ----------------------------------------------------
   // BALANCE SHEET CALCULATION
   // ----------------------------------------------------
-  // Cash in Hand computed from all transactions
+  const cashAccount = useMemo(() => {
+    return bankAccounts.find(isCashAccount);
+  }, [bankAccounts]);
+
+  // Cash in Hand computed from opening balance and all transactions
   const cashInHand = useMemo(() => {
-    let cash = 0;
+    let cash = (cashAccount && (selectedFirmId === 'ALL' || !cashAccount.firmId || cashAccount.firmId === Number(selectedFirmId)))
+      ? (cashAccount.openingBalance || 0)
+      : 0;
+
     for (const tx of firmFilteredTxs) {
       const amt = tx.paidAmount !== undefined ? tx.paidAmount : tx.amount;
       if (tx.paymentMode === 'CASH') {
@@ -277,12 +285,15 @@ export const Reports: React.FC<ReportsProps> = ({
       }
     }
     return cash;
-  }, [firmFilteredTxs]);
+  }, [firmFilteredTxs, cashAccount, selectedFirmId]);
 
-  // Bank Balances total
+  // Bank Balances total (excluding physical cash accounts to prevent double-counting in Assets)
   const totalBankBalance = useMemo(() => {
-    return bankAccounts.reduce((sum, b) => sum + (b.currentBalance || 0), 0);
-  }, [bankAccounts]);
+    return bankAccounts
+      .filter((b) => !isCashAccount(b))
+      .filter((b) => selectedFirmId === 'ALL' || !b.firmId || b.firmId === Number(selectedFirmId))
+      .reduce((sum, b) => sum + (b.currentBalance || 0), 0);
+  }, [bankAccounts, selectedFirmId]);
 
   // Total Assets
   const totalAssets = Math.max(0, cashInHand) + totalBankBalance + totalStockCost + totalReceivables;

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { BankAccount, Firm } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
+import { isCashAccount } from '../../db/db';
 
 interface BankingModalProps {
   isOpen: boolean;
@@ -375,18 +376,29 @@ export const BankingModal: React.FC<BankingModalProps> = ({
 
               {/* Bank Accounts List */}
               <div className="space-y-2.5">
-                {bankAccounts.map((b) => (
+                {bankAccounts.map((b) => {
+                  const isCash = isCashAccount(b);
+                  return (
                   <div
                     key={b.id}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                    className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                      isCash ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-slate-200 bg-white hover:border-blue-300'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                        <Landmark className="w-5 h-5" />
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold ${
+                        isCash ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-indigo-50 border-indigo-100 text-indigo-700'
+                      }`}>
+                        {isCash ? <Wallet className="w-5 h-5" /> : <Landmark className="w-5 h-5" />}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h5 className="font-bold text-slate-800 text-sm">{b.accountName}</h5>
+                          {isCash && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              💵 Physical Cash Drawer
+                            </span>
+                          )}
                           {b.firmName && (
                             <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
                               {b.firmName}
@@ -404,7 +416,7 @@ export const BankingModal: React.FC<BankingModalProps> = ({
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                       <div className="text-right">
-                        <div className="text-sm font-black text-slate-900">{formatCurrency(b.currentBalance)}</div>
+                        <div className={`text-sm font-black ${isCash ? 'text-emerald-700' : 'text-slate-900'}`}>{formatCurrency(b.currentBalance)}</div>
                         <div className="text-[10px] text-slate-400">Live Balance</div>
                       </div>
 
@@ -432,7 +444,8 @@ export const BankingModal: React.FC<BankingModalProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
               </div>
             </div>
           )}

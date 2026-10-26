@@ -44,7 +44,7 @@ import {
   UserRole,
   PartyType
 } from '../../types';
-import { db, updatePartyBalance, enqueueSyncItem } from '../../db/db';
+import { db, updatePartyBalance, enqueueSyncItem, isCashAccount } from '../../db/db';
 import { formatCurrency, numberToWordsINR, formatDate } from '../../utils/formatters';
 import { compressImage } from '../../utils/imageCompressor';
 import { AttachmentViewerModal } from '../common/AttachmentViewerModal';
@@ -319,6 +319,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     return bankAccounts.find((b) => b.id === Number(bankAccountId)) || digitalBankAccounts[0];
   }, [bankAccounts, bankAccountId, digitalBankAccounts]);
 
+  const activeCashAccount = useMemo(() => {
+    return (
+      bankAccounts.find((b) => isCashAccount(b) && b.firmId === Number(firmId)) ||
+      bankAccounts.find(isCashAccount) ||
+      bankAccounts.find((b) => (b.accountName || '').toLowerCase().includes('cash'))
+    );
+  }, [bankAccounts, firmId]);
+
+  const nonCashBankAccounts = useMemo(() => {
+    const list = bankAccounts.filter((b) => !isCashAccount(b));
+    return list.length > 0 ? list : bankAccounts;
+  }, [bankAccounts]);
+
 
   // Quick Add Party Switch & State in Customer/Party column
   const [isQuickAddParty, setIsQuickAddParty] = useState<boolean>(false);
@@ -447,8 +460,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setBankAccountId(targetBank?.id);
 
       setContraType('CASH_TO_BANK');
-      setFromBankAccountId(bankAccounts[0]?.id);
-      setToBankAccountId(bankAccounts[1]?.id || bankAccounts[0]?.id);
+      const initCashAcc = bankAccounts.find(isCashAccount) || bankAccounts[0];
+      const initRealBanks = bankAccounts.filter((b) => !isCashAccount(b));
+      const initTargetRealBank = targetBank && !isCashAccount(targetBank) ? targetBank : (initRealBanks[0] || bankAccounts[0]);
+      setFromBankAccountId(initCashAcc?.id);
+      setToBankAccountId(initTargetRealBank?.id);
       setOriginalVoucherNumber('');
       setReturnReason('Damaged / Defective');
       setDate(new Date().toISOString().split('T')[0]);
@@ -904,16 +920,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       }
 
       if (type === 'CONTRA') {
-        const fromBank = bankAccounts.find((b) => b.id === Number(fromBankAccountId));
-        const toBank = bankAccounts.find((b) => b.id === Number(toBankAccountId));
+        const cashAcc = activeCashAccount;
+
+        const fromBank = contraType === 'CASH_TO_BANK'
+          ? cashAcc
+          : bankAccounts.find((b) => b.id === Number(fromBankAccountId));
+
+        const toBank = contraType === 'BANK_TO_CASH'
+          ? cashAcc
+          : bankAccounts.find((b) => b.id === Number(toBankAccountId));
+
         return await onSave({
           voucherNumber,
           type: 'CONTRA',
           contraType,
-          fromBankAccountId: contraType === 'CASH_TO_BANK' ? undefined : fromBank?.id,
-          fromBankAccountName: contraType === 'CASH_TO_BANK' ? 'Cash in Hand' : fromBank?.accountName,
-          toBankAccountId: contraType === 'BANK_TO_CASH' ? undefined : toBank?.id,
-          toBankAccountName: contraType === 'BANK_TO_CASH' ? 'Cash in Hand' : toBank?.accountName,
+          fromBankAccountId: fromBank?.id,
+          fromBankAccountName: fromBank ? fromBank.accountName : 'Cash in Hand',
+          toBankAccountId: toBank?.id,
+          toBankAccountName: toBank ? toBank.accountName : 'Cash in Hand',
           firmId: selectedFirm?.id,
           firmName: selectedFirm?.name,
           date,
@@ -1213,7 +1237,13 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
               <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setContraType('CASH_TO_BANK')}
+                  onClick={() => {
+                    setContraType('CASH_TO_BANK');
+                    setFromBankAccountId(activeCashAccount?.id);
+                    if (!toBankAccountId || isCashAccount(bankAccounts.find(b => b.id === toBankAccountId))) {
+                      setToBankAccountId(nonCashBankAccounts[0]?.id);
+                    }
+                  }}
                   className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'CASH_TO_BANK'
                       ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
@@ -1226,7 +1256,13 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
                 <button
                   type="button"
-                  onClick={() => setContraType('BANK_TO_CASH')}
+                  onClick={() => {
+                    setContraType('BANK_TO_CASH');
+                    setToBankAccountId(activeCashAccount?.id);
+                    if (!fromBankAccountId || isCashAccount(bankAccounts.find(b => b.id === fromBankAccountId))) {
+                      setFromBankAccountId(nonCashBankAccounts[0]?.id);
+                    }
+                  }}
                   className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'BANK_TO_CASH'
                       ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
@@ -1239,7 +1275,13 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
                 <button
                   type="button"
-                  onClick={() => setContraType('BANK_TO_BANK')}
+                  onClick={() => {
+                    setContraType('BANK_TO_BANK');
+                    if (nonCashBankAccounts.length >= 2) {
+                      setFromBankAccountId(nonCashBankAccounts[0]?.id);
+                      setToBankAccountId(nonCashBankAccounts[1]?.id);
+                    }
+                  }}
                   className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                     contraType === 'BANK_TO_BANK'
                       ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
@@ -1259,18 +1301,18 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       <input
                         type="text"
                         disabled
-                        value="💵 Cash in Hand"
+                        value={`💵 Cash in Hand (Bal: ${formatCurrency(activeCashAccount?.currentBalance || 0)})`}
                         className="w-full px-2.5 py-1 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
                       />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Credited To (Bank)</label>
                       <select
-                        value={toBankAccountId || ''}
+                        value={toBankAccountId || (nonCashBankAccounts[0]?.id || '')}
                         onChange={(e) => setToBankAccountId(Number(e.target.value))}
                         className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
-                        {bankAccounts.map((b) => (
+                        {nonCashBankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.bankName} - {b.accountName} (Bal: {formatCurrency(b.currentBalance)})
                           </option>
@@ -1283,11 +1325,11 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Debited From (Bank)</label>
                       <select
-                        value={fromBankAccountId || ''}
+                        value={fromBankAccountId || (nonCashBankAccounts[0]?.id || '')}
                         onChange={(e) => setFromBankAccountId(Number(e.target.value))}
                         className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none"
                       >
-                        {bankAccounts.map((b) => (
+                        {nonCashBankAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.bankName} - {b.accountName} (Bal: {formatCurrency(b.currentBalance)})
                           </option>
@@ -1299,7 +1341,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                       <input
                         type="text"
                         disabled
-                        value="💵 Cash in Hand"
+                        value={`💵 Cash in Hand (Bal: ${formatCurrency(activeCashAccount?.currentBalance || 0)})`}
                         className="w-full px-2.5 py-1 text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
                       />
                     </div>

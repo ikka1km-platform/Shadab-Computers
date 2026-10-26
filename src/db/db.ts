@@ -290,13 +290,22 @@ export async function initializeDatabase() {
         createdAt: new Date().toISOString(),
       });
     }
-    // Re-tally all existing parties on launch
-    const existingParties = await db.parties.toArray();
-    for (const p of existingParties) {
-      if (p.id) await updatePartyBalance(p.id);
-    }
-    return;
   }
+
+  // Re-tally all existing parties and bank accounts on launch
+  const existingParties = await db.parties.toArray();
+  for (const p of existingParties) {
+    if (p.id) await updatePartyBalance(p.id);
+  }
+  await updateBankAccountBalances();
+}
+
+export function isCashAccount(b?: Partial<BankAccount> | null): boolean {
+  if (!b) return false;
+  const num = (b.accountNumber || '').toUpperCase().trim();
+  const name = (b.bankName || '').toLowerCase().trim();
+  const accName = (b.accountName || '').toLowerCase().trim();
+  return num.includes('CASH') || name.includes('cash') || accName.includes('cash');
 }
 
 export async function updatePartyBalance(partyId: number) {
@@ -337,24 +346,36 @@ export async function updateBankAccountBalances() {
   const txs = await db.transactions.toArray();
 
   for (const bank of banks) {
-    let balance = bank.openingBalance;
+    let balance = bank.openingBalance || 0;
+    const isThisCash = isCashAccount(bank);
+
     for (const tx of txs) {
       if (tx.type === 'CONTRA') {
         if (tx.contraType === 'CASH_TO_BANK') {
-          if (tx.toBankAccountId === bank.id || tx.bankAccountId === bank.id) {
+          // Destination bank receives cash deposit
+          if (tx.toBankAccountId === bank.id || (!isThisCash && tx.bankAccountId === bank.id)) {
             balance += tx.amount;
           }
-        } else if (tx.contraType === 'BANK_TO_CASH') {
-          if (tx.fromBankAccountId === bank.id || tx.bankAccountId === bank.id) {
+          // Source cash in hand is reduced!
+          if (tx.fromBankAccountId === bank.id || (!tx.fromBankAccountId && isThisCash)) {
             balance -= tx.amount;
+          }
+        } else if (tx.contraType === 'BANK_TO_CASH') {
+          // Source bank is debited
+          if (tx.fromBankAccountId === bank.id || (!isThisCash && tx.bankAccountId === bank.id)) {
+            balance -= tx.amount;
+          }
+          // Destination cash in hand receives money!
+          if (tx.toBankAccountId === bank.id || (!tx.toBankAccountId && isThisCash)) {
+            balance += tx.amount;
           }
         } else if (tx.contraType === 'BANK_TO_BANK') {
           if (tx.fromBankAccountId === bank.id) balance -= tx.amount;
           if (tx.toBankAccountId === bank.id) balance += tx.amount;
         }
       } else if (tx.bankAccountId === bank.id) {
-        const isPositive = tx.type === 'PAYMENT_IN' || tx.type === 'SALE';
-        const isNegative = tx.type === 'PAYMENT_OUT' || tx.type === 'PURCHASE' || tx.type === 'EXPENSE';
+        const isPositive = tx.type === 'PAYMENT_IN' || tx.type === 'SALE' || tx.type === 'DEBIT_NOTE';
+        const isNegative = tx.type === 'PAYMENT_OUT' || tx.type === 'PURCHASE' || tx.type === 'EXPENSE' || tx.type === 'CREDIT_NOTE';
         const digitalAmt = tx.paymentMode === 'SPLIT' && tx.splitPayment
           ? tx.splitPayment.onlineAmount
           : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);

@@ -131,6 +131,18 @@ export const Daybook: React.FC<DaybookProps> = ({
         const paid = tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'UNPAID' ? 0 : tx.amount);
         return sum + paid;
       }
+      if (tx.type === 'DEBIT_NOTE') {
+        return sum + (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
+      }
+      if (tx.type === 'CONTRA') {
+        if (filterMode === 'CASH') {
+          if (tx.contraType === 'BANK_TO_CASH') return sum + tx.amount;
+        } else if (filterMode === 'BANK' || filterMode === 'UPI') {
+          if (tx.contraType === 'CASH_TO_BANK') return sum + tx.amount;
+        } else if (filterMode === 'ALL') {
+          if (tx.contraType === 'BANK_TO_CASH') return sum + tx.amount;
+        }
+      }
       return sum;
     }, 0);
 
@@ -140,6 +152,18 @@ export const Daybook: React.FC<DaybookProps> = ({
       if (tx.type === 'PURCHASE') {
         const paid = tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'UNPAID' ? 0 : tx.amount);
         return sum + paid;
+      }
+      if (tx.type === 'CREDIT_NOTE') {
+        return sum + (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
+      }
+      if (tx.type === 'CONTRA') {
+        if (filterMode === 'CASH') {
+          if (tx.contraType === 'CASH_TO_BANK') return sum + tx.amount;
+        } else if (filterMode === 'BANK' || filterMode === 'UPI') {
+          if (tx.contraType === 'BANK_TO_CASH') return sum + tx.amount;
+        } else if (filterMode === 'ALL') {
+          if (tx.contraType === 'CASH_TO_BANK') return sum + tx.amount;
+        }
       }
       return sum;
     }, 0);
@@ -333,16 +357,34 @@ export const Daybook: React.FC<DaybookProps> = ({
                 sortedFilteredTxs.map((tx) => {
                   const isPositive = tx.type === 'PAYMENT_IN' || tx.type === 'SALE';
                   const party = parties.find((p) => p.id === tx.partyId);
-                  const effectiveIn = tx.type === 'PAYMENT_IN' 
+                  let effectiveIn = tx.type === 'PAYMENT_IN' 
                     ? tx.amount 
                     : tx.type === 'SALE' 
                       ? (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'UNPAID' ? 0 : tx.amount))
-                      : 0;
-                  const effectiveOut = (tx.type === 'PAYMENT_OUT' || tx.type === 'EXPENSE')
+                      : tx.type === 'DEBIT_NOTE'
+                        ? (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount)
+                        : 0;
+                  let effectiveOut = (tx.type === 'PAYMENT_OUT' || tx.type === 'EXPENSE')
                     ? tx.amount 
                     : tx.type === 'PURCHASE'
                       ? (tx.paidAmount !== undefined ? tx.paidAmount : (tx.paymentStatus === 'UNPAID' ? 0 : tx.amount))
-                      : 0;
+                      : tx.type === 'CREDIT_NOTE'
+                        ? (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount)
+                        : 0;
+
+                  if (tx.type === 'CONTRA') {
+                    if (filterMode === 'CASH') {
+                      if (tx.contraType === 'CASH_TO_BANK') effectiveOut = tx.amount;
+                      if (tx.contraType === 'BANK_TO_CASH') effectiveIn = tx.amount;
+                    } else if (filterMode === 'BANK' || filterMode === 'UPI') {
+                      if (tx.contraType === 'CASH_TO_BANK') effectiveIn = tx.amount;
+                      if (tx.contraType === 'BANK_TO_CASH') effectiveOut = tx.amount;
+                    } else {
+                      if (tx.contraType === 'CASH_TO_BANK') effectiveOut = tx.amount;
+                      if (tx.contraType === 'BANK_TO_CASH') effectiveIn = tx.amount;
+                      if (tx.contraType === 'BANK_TO_BANK') effectiveOut = tx.amount;
+                    }
+                  }
 
                   return (
                     <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
@@ -386,7 +428,15 @@ export const Daybook: React.FC<DaybookProps> = ({
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="font-semibold text-slate-800">{tx.partyName || 'Self / Expense'}</div>
+                        <div className="font-semibold text-slate-800">
+                          {tx.type === 'CONTRA'
+                            ? (tx.contraType === 'CASH_TO_BANK'
+                                ? `Cash in Hand ➔ ${tx.toBankAccountName || 'Bank'}`
+                                : tx.contraType === 'BANK_TO_CASH'
+                                  ? `${tx.fromBankAccountName || 'Bank'} ➔ Cash in Hand`
+                                  : `${tx.fromBankAccountName || 'Bank A'} ➔ ${tx.toBankAccountName || 'Bank B'}`)
+                            : (tx.partyName || 'Self / Expense')}
+                        </div>
                         {tx.description && <div className="text-[11px] text-slate-400">{tx.description}</div>}
                         {tx.attachments && tx.attachments.length > 0 && (
                           <button
