@@ -57,9 +57,23 @@ export const App: React.FC = () => {
   // Standalone Wrist Watch Mode for GS29 Android 8.1.0 Smartwatch
   const [isWatchMode, setIsWatchMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
+      const isTrueWatchDimensions = (
+        window.innerWidth > 0 &&
+        window.innerHeight > 0 &&
+        window.innerWidth <= 454 &&
+        window.innerHeight <= 454
+      );
       const stored = localStorage.getItem('vyapar_wrist_watch_mode');
-      if (stored !== null) return stored === 'true';
-      return (window.innerWidth <= 480 && window.innerWidth > 0) || (window.innerHeight <= 480 && window.innerHeight > 0);
+      if (stored !== null) {
+        // If on a regular mobile phone (height > 550), never get trapped in watch mode by old storage
+        if (stored === 'true' && window.innerHeight > 550) {
+          localStorage.removeItem('vyapar_wrist_watch_mode');
+          return false;
+        }
+        return stored === 'true';
+      }
+      // ONLY true smartwatches (square/circle <= 454px) auto-open watch mode
+      return isTrueWatchDimensions;
     }
     return false;
   });
