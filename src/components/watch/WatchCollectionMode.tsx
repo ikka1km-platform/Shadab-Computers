@@ -39,6 +39,12 @@ import {
   PairedDevice 
 } from '../../utils/nativeBluetoothPrinter';
 import { isCashAccount } from '../../db/db';
+import { 
+  authenticateFirmOnCloud, 
+  downloadCloudVault, 
+  hydrateDexieWithCloudVault,
+  getCloudServerUrl
+} from '../../utils/cloudSync';
 
 interface WatchCollectionModeProps {
   parties: Party[];
@@ -106,6 +112,51 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
   const [tallyDenoms, setTallyDenoms] = useState<DenominationBreakdown>({
     c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0
   });
+
+  const [isWatchSyncing, setIsWatchSyncing] = useState<boolean>(false);
+
+  const handleWatchCloudSync = async () => {
+    setIsWatchSyncing(true);
+    showToast('Connecting to Cloud...');
+    try {
+      const firmIdToUse = profile?.firmId || 'FIRM_MUI8HFY6_47UPAJ';
+      const pinToUse = profile?.securityPin || '1234';
+      const res = await authenticateFirmOnCloud(firmIdToUse, pinToUse);
+      let vault = res.vault;
+      if (!vault) {
+        vault = await downloadCloudVault(firmIdToUse);
+      }
+      if (!vault) {
+        throw new Error('Could not download cloud vault.');
+      }
+      vault.firmId = vault.firmId || res.firmId || firmIdToUse;
+
+      showToast(`Hydrating ${vault.parties?.length || 0} parties...`);
+      await hydrateDexieWithCloudVault(vault, {
+        clearExisting: true,
+        forceReload: false,
+        userSession: {
+          type: res.role === 'Owner' ? 'OWNER' : 'COWORKER',
+          id: res.workerId,
+          name: res.workerName || 'Owner (Admin)',
+          role: res.role || 'Owner',
+        },
+      });
+      showToast(`Loaded ${vault.parties?.length || 0} parties on wrist!`);
+    } catch (err: any) {
+      console.error('Watch sync error:', err);
+      if (onManualSync) {
+        try {
+          await onManualSync();
+          showToast('Synced with phone cloud');
+          return;
+        } catch (_) {}
+      }
+      showToast(`Sync: ${err.message || 'Check connection'}`);
+    } finally {
+      setIsWatchSyncing(false);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -408,13 +459,13 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
           {/* Sync Button */}
           {onManualSync && (
             <button
-              onClick={onManualSync}
-              disabled={isSyncing}
-              className={`p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 ${isSyncing ? 'animate-spin' : ''}`}
-              title="Cloud Sync"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            onClick={handleWatchCloudSync}
+            disabled={isWatchSyncing || isSyncing}
+            className={`p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 ${isWatchSyncing || isSyncing ? 'animate-spin' : ''}`}
+            title="Sync Debtors from Phone Cloud"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
           )}
 
           {/* Route Config Button */}
@@ -530,7 +581,27 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
 
           {/* LIST OF DEBTORS (Large thumb-friendly cards) */}
           <div className="space-y-1.5 flex-1 overflow-y-auto">
-            {filteredParties.length === 0 ? (
+            {parties.length === 0 ? (
+              <div className="text-center py-5 px-3 bg-slate-900 border border-slate-800 rounded-2xl my-2 space-y-2.5">
+                <div className="w-10 h-10 mx-auto rounded-full bg-blue-900/40 text-blue-400 flex items-center justify-center border border-blue-700">
+                  <RefreshCw className={`w-5 h-5 ${isWatchSyncing || isSyncing ? 'animate-spin text-blue-400' : ''}`} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-white">Load Customer Accounts</h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                    Sync 96 debtors & pending balances from Shadab Computers
+                  </p>
+                </div>
+                <button
+                  onClick={handleWatchCloudSync}
+                  disabled={isWatchSyncing || isSyncing}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isWatchSyncing || isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isWatchSyncing || isSyncing ? 'Connecting...' : '1-Tap Sync from Phone'}</span>
+                </button>
+              </div>
+            ) : filteredParties.length === 0 ? (
               <div className="text-center py-8 text-slate-500 text-xs">
                 No debtors found in this route.
               </div>

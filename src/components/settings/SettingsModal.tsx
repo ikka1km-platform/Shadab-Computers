@@ -471,6 +471,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (!vault) {
         throw new Error(`Firm ${cleanFirmId} was authenticated, but cloud vault could not be downloaded.`);
       }
+      vault.firmId = vault.firmId || res.firmId || cleanFirmId;
 
       setCloudStatusMsg(`✓ Authenticated with ${res.firmName || cleanFirmId}! Hydrating business data...`);
 

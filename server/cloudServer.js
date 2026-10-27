@@ -115,14 +115,24 @@ function getFirmVault(firmId) {
   if (fs.existsSync(file)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
-      return cleanDemoArtifactsFromVault(parsed);
+      const cleaned = cleanDemoArtifactsFromVault(parsed);
+      if (cleaned && !cleaned.firmId) {
+        cleaned.firmId = firmId;
+      }
+      return cleaned;
     } catch (_) {}
   }
   return null;
 }
 
 function saveFirmVault(firmId, vaultData) {
+  if (vaultData && !vaultData.firmId) {
+    vaultData.firmId = firmId;
+  }
   const cleaned = cleanDemoArtifactsFromVault(vaultData);
+  if (cleaned && !cleaned.firmId) {
+    cleaned.firmId = firmId;
+  }
   const file = path.join(getFirmDir(firmId), 'vault.json');
   fs.writeFileSync(file, JSON.stringify(cleaned, null, 2), 'utf-8');
 }
@@ -457,6 +467,9 @@ app.post('/api/firm/auth', (req, res) => {
 
     console.log(`[Cloud Server] Authenticated ${userRole} (${userName}) for firm ${cleanFirmId}`);
 
+    if (vault && !vault.firmId) {
+      vault.firmId = cleanFirmId;
+    }
     res.json({
       success: true,
       firmId: cleanFirmId,
@@ -480,6 +493,9 @@ app.get('/api/firm/vault', requireFirmAuth, (req, res) => {
     const vault = getFirmVault(req.firmId);
     if (!vault) {
       return res.status(404).json({ error: 'Vault not found' });
+    }
+    if (vault && !vault.firmId) {
+      vault.firmId = req.firmId;
     }
     res.json({ success: true, vault });
   } catch (err) {

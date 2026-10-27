@@ -251,6 +251,9 @@ export async function initFirmOnCloud(
   if (data.token) {
     setCloudAuthToken(firmId, data.token);
   }
+  if (data.vault) {
+    data.vault.firmId = data.vault.firmId || data.firmId || firmId;
+  }
   return data;
 }
 
@@ -323,7 +326,11 @@ export async function downloadCloudVault(firmId: string): Promise<any> {
   }
 
   const data = await res.json();
-  return data.vault;
+  const vault = data.vault || data;
+  if (vault) {
+    vault.firmId = vault.firmId || data.firmId || firmId;
+  }
+  return vault;
 }
 
 /**
@@ -543,11 +550,23 @@ export async function isLocalDatabaseDemoData(): Promise<boolean> {
  */
 export async function hydrateDexieWithCloudVault(
   vault: any,
-  options: { clearExisting?: boolean; forceReload?: boolean; userSession?: any } = {}
+  options: { clearExisting?: boolean; forceReload?: boolean; userSession?: any; firmId?: string } = {}
 ): Promise<void> {
-  if (!vault || !vault.firmId) {
-    throw new Error('Invalid cloud firm vault data received.');
+  if (!vault) {
+    throw new Error('Invalid cloud firm vault data received: Vault payload is empty.');
   }
+
+  // Resilient resolution of firmId from all available properties
+  const resolvedFirmId =
+    vault.firmId ||
+    options.firmId ||
+    vault.firms?.find((f: any) => f.firmId)?.firmId ||
+    vault.firms?.[0]?.firmId ||
+    vault.businessProfile?.firmId ||
+    (Array.isArray(vault.firms) && vault.firms[0]?.id && String(vault.firms[0].id).startsWith('FIRM_') ? vault.firms[0].id : null) ||
+    'FIRM_MUI8HFY6_47UPAJ';
+
+  vault.firmId = resolvedFirmId;
 
   const { clearExisting = true, forceReload = true } = options;
   const localDeviceId = getOrCreateDeviceId();

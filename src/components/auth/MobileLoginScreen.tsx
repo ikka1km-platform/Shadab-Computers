@@ -71,6 +71,7 @@ export const MobileLoginScreen: React.FC<MobileLoginScreenProps> = ({
       if (!vault) {
         throw new Error('Firm authenticated, but could not download firm data.');
       }
+      vault.firmId = vault.firmId || res.firmId || cleanFirmId;
       setCloudJoinMsg(`✓ Authenticated with ${res.firmName || cleanFirmId}! Hydrating business data...`);
       await hydrateDexieWithCloudVault(vault, { clearExisting: true, forceReload: true });
     } catch (err: any) {
