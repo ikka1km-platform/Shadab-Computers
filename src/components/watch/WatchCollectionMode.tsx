@@ -676,32 +676,49 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
               </div>
             </div>
 
-            {/* Note Stepper Pad */}
+            {/* Pocket Note Tally - Direct Type Method (No +- buttons) */}
             <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                Pocket Note Tally
-              </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">
+                  Pocket Note Counts
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTallyDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 })}
+                  className="text-[10px] text-rose-400 font-bold hover:underline"
+                >
+                  Clear All
+                </button>
+              </div>
 
-              {[500, 200, 100, 50].map((note) => {
+              {[500, 200, 100, 50, 20, 10].map((note) => {
                 const key = `c${note}` as keyof DenominationBreakdown;
                 const count = tallyDenoms[key] || 0;
                 return (
-                  <div key={note} className="flex items-center justify-between bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800">
-                    <span className="text-xs font-bold text-slate-300">₹{note}</span>
+                  <div key={note} className="flex items-center justify-between bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-1.5 min-w-[55px]">
+                      <span className="text-xs font-black text-slate-200">₹{note}</span>
+                      <span className="text-[10px] text-slate-500 font-bold">×</span>
+                    </div>
+
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setTallyDenoms(prev => ({ ...prev, [key]: Math.max(0, count - 1) }))}
-                        className="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-xs font-black flex items-center justify-center active:scale-90"
-                      >
-                        -
-                      </button>
-                      <span className="text-xs font-black w-6 text-center text-white">{count}</span>
-                      <button
-                        onClick={() => setTallyDenoms(prev => ({ ...prev, [key]: count + 1 }))}
-                        className="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-xs font-black flex items-center justify-center active:scale-90"
-                      >
-                        +
-                      </button>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="0"
+                        value={count === 0 ? '' : count}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          const num = val === '' ? 0 : parseInt(val, 10);
+                          setTallyDenoms(prev => ({ ...prev, [key]: num }));
+                        }}
+                        className="w-20 py-1 px-2 text-center text-sm font-black text-white bg-slate-900 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg outline-none"
+                      />
+                      <span className="text-[11px] font-black text-emerald-400 w-16 text-right truncate">
+                        {count > 0 ? formatCurrency(count * note) : '—'}
+                      </span>
                     </div>
                   </div>
                 );
@@ -908,69 +925,129 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
             </div>
           )}
 
-          {/* STEP 3: CASH NOTE DENOMINATION COUNTER */}
-          {wizardStep === 3 && (
-            <div className="flex-1 flex flex-col justify-between py-2 space-y-2 overflow-y-auto">
-              <div className="text-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">
-                  Cash to Tally: <strong className="text-emerald-400">₹ {paymentMode === 'SPLIT' ? cashPart : inputAmount}</strong>
-                </span>
-                <div className="text-xs font-bold mt-0.5">
-                  Tallied: <strong className={totalTalliedNotes === Number(paymentMode === 'SPLIT' ? cashPart : inputAmount) ? 'text-emerald-400' : 'text-amber-400'}>
-                    ₹{totalTalliedNotes}
-                  </strong>
+          {/* STEP 3: CASH NOTE DENOMINATION COUNTER - DIRECT TYPE METHOD */}
+          {wizardStep === 3 && (() => {
+            const targetCash = Number(paymentMode === 'SPLIT' ? cashPart : inputAmount);
+            const diff = targetCash - totalTalliedNotes;
+
+            return (
+              <div className="flex-1 flex flex-col justify-between py-2 space-y-2 overflow-y-auto">
+                <div className="text-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
+                    <span className="text-slate-400 uppercase">Cash to Tally:</span>
+                    <span className="text-white font-black">₹{targetCash}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-bold mt-1">
+                    <span className="text-slate-400">Tallied:</span>
+                    {diff === 0 ? (
+                      <span className="text-emerald-400 font-black">✓ ₹{totalTalliedNotes} (Matched)</span>
+                    ) : diff > 0 ? (
+                      <span className="text-amber-400 font-black">₹{totalTalliedNotes} (₹{diff} left)</span>
+                    ) : (
+                      <span className="text-rose-400 font-black">₹{totalTalliedNotes} (+₹{Math.abs(diff)} extra)</span>
+                    )}
+                  </div>
+
+                  {/* 1-Tap Quick Auto-Fill Shortcuts (e.g. 150 notes of 100) */}
+                  {targetCash > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 mt-1 border-t border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase shrink-0">Auto:</span>
+                      {targetCash >= 500 && (
+                        <button
+                          type="button"
+                          onClick={() => setDenoms({ c500: Math.floor(targetCash / 500), c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: targetCash % 500 })}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 rounded-md text-[10px] font-bold shrink-0 active:scale-95"
+                        >
+                          All 500s ({Math.floor(targetCash / 500)})
+                        </button>
+                      )}
+                      {targetCash >= 200 && (
+                        <button
+                          type="button"
+                          onClick={() => setDenoms({ c500: 0, c200: Math.floor(targetCash / 200), c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: targetCash % 200 })}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 rounded-md text-[10px] font-bold shrink-0 active:scale-95"
+                        >
+                          All 200s ({Math.floor(targetCash / 200)})
+                        </button>
+                      )}
+                      {targetCash >= 100 && (
+                        <button
+                          type="button"
+                          onClick={() => setDenoms({ c500: 0, c200: 0, c100: Math.floor(targetCash / 100), c50: 0, c20: 0, c10: 0, c5: 0, coins: targetCash % 100 })}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 rounded-md text-[10px] font-bold shrink-0 active:scale-95"
+                        >
+                          All 100s ({Math.floor(targetCash / 100)})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 })}
+                        className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 rounded-md text-[10px] font-bold shrink-0 active:scale-95"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Direct Type Note Inputs (No +- buttons, pure typing) */}
+                <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[170px] pr-0.5">
+                  {[500, 200, 100, 50, 20, 10].map((note) => {
+                    const key = `c${note}` as keyof DenominationBreakdown;
+                    const count = denoms[key] || 0;
+                    return (
+                      <div key={note} className="flex items-center justify-between bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-800 focus-within:border-blue-500">
+                        <div className="flex items-center gap-1.5 min-w-[55px]">
+                          <span className="text-xs font-black text-white">₹{note}</span>
+                          <span className="text-[10px] text-slate-500 font-bold">×</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="0"
+                            value={count === 0 ? '' : count}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              const num = val === '' ? 0 : parseInt(val, 10);
+                              setDenoms(prev => ({ ...prev, [key]: num }));
+                            }}
+                            className="w-20 py-1 px-2 text-center text-sm font-black text-white bg-slate-950 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg outline-none"
+                          />
+                          <span className="text-[11px] font-black text-emerald-400 w-16 text-right truncate">
+                            {count > 0 ? formatCurrency(count * note) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <button
+                    onClick={() => setWizardStep(4)}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  >
+                    <span>Next: Summary & Print</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 });
+                      setWizardStep(4);
+                    }}
+                    className="w-full py-1.5 bg-slate-800 text-amber-300 border border-slate-700 rounded-lg text-[11px] font-bold active:scale-95"
+                  >
+                    ⚡ Skip Notes & Print Directly
+                  </button>
                 </div>
               </div>
-
-              {/* Note Steppers */}
-              <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[160px]">
-                {[500, 200, 100, 50, 20, 10].map((note) => {
-                  const key = `c${note}` as keyof DenominationBreakdown;
-                  const count = denoms[key] || 0;
-                  return (
-                    <div key={note} className="flex items-center justify-between bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                      <span className="text-xs font-bold text-slate-200">₹{note}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setDenoms(prev => ({ ...prev, [key]: Math.max(0, count - 1) }))}
-                          className="w-7 h-7 bg-slate-800 text-white rounded-md text-xs font-black flex items-center justify-center active:scale-90"
-                        >
-                          -
-                        </button>
-                        <span className="text-xs font-black w-6 text-center text-white">{count}</span>
-                        <button
-                          onClick={() => setDenoms(prev => ({ ...prev, [key]: count + 1 }))}
-                          className="w-7 h-7 bg-blue-600 text-white rounded-md text-xs font-black flex items-center justify-center active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-1.5">
-                <button
-                  onClick={() => setWizardStep(4)}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1"
-                >
-                  <span>Next: Summary & Print</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => {
-                    setDenoms({ c500: 0, c200: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0, coins: 0 });
-                    setWizardStep(4);
-                  }}
-                  className="w-full py-1.5 bg-slate-800 text-amber-300 border border-slate-700 rounded-lg text-[11px] font-bold"
-                >
-                  ⚡ Skip Notes & Print Directly
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* STEP 4: RECEIPT SUMMARY & 1-TAP PRINT */}
           {wizardStep === 4 && (
