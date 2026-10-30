@@ -97,6 +97,7 @@ export const PartyList: React.FC<PartyListProps> = ({
       else if (filterType === 'SUPPLIER') matchesType = p.partyType === 'SUPPLIER';
       else if (filterType === 'RECEIVABLE') matchesType = p.currentBalance > 0;
       else if (filterType === 'PAYABLE') matchesType = p.currentBalance < 0;
+      else if (filterType === 'ADVANCE') matchesType = p.partyType === 'CUSTOMER' && p.currentBalance < 0;
 
       let matchesFirm = true;
       if (selectedFirmId !== 'ALL') {
@@ -113,7 +114,7 @@ export const PartyList: React.FC<PartyListProps> = ({
       if (filterType === 'CUSTOMER' || filterType === 'RECEIVABLE') {
         // High receivable first (> 0), then 0 / settled, then negative
         return b.currentBalance - a.currentBalance;
-      } else if (filterType === 'SUPPLIER' || filterType === 'PAYABLE') {
+      } else if (filterType === 'SUPPLIER' || filterType === 'PAYABLE' || filterType === 'ADVANCE') {
         // High payable first (< 0 -> highest absolute value), then 0, then positive
         return Math.abs(b.currentBalance) - Math.abs(a.currentBalance);
       }
@@ -126,6 +127,13 @@ export const PartyList: React.FC<PartyListProps> = ({
 
   const totalPayables = parties
     .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0)
+    .reduce((sum, p) => sum + Math.abs(p.currentBalance), 0);
+
+  const customerAdvancesCount = parties
+    .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.partyType === 'CUSTOMER' && p.currentBalance < 0)
+    .length;
+  const customerAdvancesTotal = parties
+    .filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.partyType === 'CUSTOMER' && p.currentBalance < 0)
     .reduce((sum, p) => sum + Math.abs(p.currentBalance), 0);
 
   return (
@@ -276,8 +284,18 @@ export const PartyList: React.FC<PartyListProps> = ({
                   filterType === 'PAYABLE' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600'
                 }`}
               >
-                Payables Only ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0).length})
+                Payables (You'll Give) ({parties.filter((p) => (selectedFirmId === 'ALL' || !p.firmId || p.firmId === Number(selectedFirmId)) && p.currentBalance < 0).length})
               </button>
+              {customerAdvancesCount > 0 && (
+                <button
+                  onClick={() => setFilterType('ADVANCE')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    filterType === 'ADVANCE' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'
+                  }`}
+                >
+                  Advances ({customerAdvancesCount})
+                </button>
+              )}
             </>
           )}
           <button
@@ -378,6 +396,11 @@ export const PartyList: React.FC<PartyListProps> = ({
                       <div className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 truncate">
                         <span className="truncate">{p.name}</span>
                         <span className="text-[10px] text-slate-400 font-mono font-normal shrink-0">#{p.accountCode}</span>
+                        {p.partyType === 'CUSTOMER' && p.currentBalance < 0 && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                            Customer Advance
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {p.phone ? (
@@ -418,12 +441,26 @@ export const PartyList: React.FC<PartyListProps> = ({
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <div className="text-right">
                       <div className={`font-black text-xs sm:text-base ${
-                        isReceivable ? 'text-emerald-600' : isPayable ? 'text-rose-600' : 'text-slate-700'
+                        isReceivable 
+                          ? 'text-emerald-600' 
+                          : (p.partyType === 'CUSTOMER' && p.currentBalance < 0)
+                            ? 'text-purple-600'
+                            : isPayable ? 'text-rose-600' : 'text-slate-700'
                       }`}>
                         {formatCurrency(Math.abs(p.currentBalance))}
                       </div>
-                      <div className="text-[10px] font-semibold text-slate-400">
-                        {isReceivable ? "You'll Receive" : isPayable ? "You'll Give" : 'Settled (0.00)'}
+                      <div className={`text-[10px] font-bold ${
+                        isReceivable 
+                          ? 'text-emerald-600' 
+                          : (p.partyType === 'CUSTOMER' && p.currentBalance < 0)
+                            ? 'text-purple-600'
+                            : isPayable ? 'text-rose-600' : 'text-slate-400'
+                      }`}>
+                        {isReceivable 
+                          ? "You'll Receive" 
+                          : (p.partyType === 'CUSTOMER' && p.currentBalance < 0)
+                            ? "Advance (You'll Give)"
+                            : isPayable ? "You'll Give" : 'Settled (0.00)'}
                       </div>
                     </div>
 

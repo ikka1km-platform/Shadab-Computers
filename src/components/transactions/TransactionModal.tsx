@@ -537,6 +537,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     ? (paymentStatus === 'UNPAID' ? 0 : paymentStatus === 'PAID' ? amount : paidAmount)
     : amount;
   const balanceDue = Math.max(0, amount - effectivePaidAmount);
+  const advanceAmount = Math.max(0, effectivePaidAmount - amount);
 
   const targetCashAmount = paymentStatus === 'UNPAID' && isItemBased 
     ? 0 
@@ -817,12 +818,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   };
 
   const handlePaidAmountChange = (val: number) => {
-    const clamped = Math.min(Math.max(0, val), amount);
-    setPaidAmount(clamped);
+    const valNonNeg = Math.max(0, val);
+    setPaidAmount(valNonNeg);
     if (paymentMode === 'SPLIT') {
-      const half = Math.floor(clamped / 2);
+      const half = Math.floor(valNonNeg / 2);
       setCashPart(half);
-      setOnlinePart(clamped - half);
+      setOnlinePart(valNonNeg - half);
     }
   };
 
@@ -1853,7 +1854,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
                 }`}>
                   {paymentStatus === 'UNPAID' ? '🔴 100% Credit (Auto-Udhar)' :
                    paymentStatus === 'PAID' ? '🟢 100% Paid / Cash' :
-                   `🟡 Partial (Due: ₹${balanceDue})`}
+                   advanceAmount > 0 ? `🟣 Advance (+₹${advanceAmount})` : `🟡 Partial (Due: ₹${balanceDue})`}
                 </span>
               </div>
 
@@ -1912,26 +1913,39 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
               )}
 
               {paymentStatus === 'PARTIAL' && (
-                <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg grid grid-cols-2 gap-2 text-xs items-center">
-                  <div>
-                    <label className="block text-[10px] font-bold text-amber-900 uppercase">Received / Advance (₹)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={amount}
-                      step="any"
-                      value={paidAmount || ''}
-                      onChange={(e) => handlePaidAmountChange(parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-full px-2 py-1 text-sm font-black text-emerald-700 bg-white border border-amber-300 rounded outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-rose-900 uppercase">Remaining Due (Udhar)</label>
-                    <div className="px-2 py-1 bg-white border border-rose-200 rounded text-sm font-black text-rose-600">
-                      {formatCurrency(balanceDue)}
+                <div className="p-2 bg-amber-50/80 border border-amber-200 rounded-lg space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-xs items-center">
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-900 uppercase">Received / Advance (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={paidAmount || ''}
+                        onChange={(e) => handlePaidAmountChange(parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full px-2 py-1 text-sm font-black text-emerald-700 bg-white border border-amber-300 rounded outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-700">
+                        {advanceAmount > 0 ? "Advance (You'll Give)" : "Remaining Due (Udhar)"}
+                      </label>
+                      <div className={`px-2 py-1 border rounded text-sm font-black ${
+                        advanceAmount > 0 
+                          ? "bg-purple-50 border-purple-300 text-purple-700" 
+                          : "bg-white border-rose-200 text-rose-600"
+                      }`}>
+                        {advanceAmount > 0 ? `+ ${formatCurrency(advanceAmount)}` : formatCurrency(balanceDue)}
+                      </div>
                     </div>
                   </div>
+                  {advanceAmount > 0 && (
+                    <div className="text-[10px] text-purple-700 bg-purple-100/70 border border-purple-200 px-2 py-1 rounded font-semibold flex items-center gap-1">
+                      <span>🏷️</span>
+                      <span>Customer is paying <b>₹{advanceAmount} extra</b>. This advance will be credited to customer's account under <b>"You'll Give"</b>.</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

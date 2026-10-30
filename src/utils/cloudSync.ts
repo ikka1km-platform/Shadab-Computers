@@ -552,6 +552,20 @@ export async function hydrateDexieWithCloudVault(
   vault: any,
   options: { clearExisting?: boolean; forceReload?: boolean; userSession?: any; firmId?: string } = {}
 ): Promise<void> {
+  if (typeof vault === 'string') {
+    try {
+      vault = JSON.parse(vault);
+    } catch (_) {}
+  }
+
+  if (vault && vault.vault && typeof vault.vault === 'object') {
+    const parentFirmId = vault.firmId || options.firmId;
+    vault = vault.vault;
+    if (parentFirmId && !vault.firmId) {
+      vault.firmId = parentFirmId;
+    }
+  }
+
   if (!vault) {
     throw new Error('Invalid cloud firm vault data received: Vault payload is empty.');
   }

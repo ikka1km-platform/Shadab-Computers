@@ -139,6 +139,10 @@ export const ItemModal: React.FC<ItemModalProps> = ({
   };
 
   const handleRemoveImage = (indexToRemove: number) => {
+    const imgToRemove = images[indexToRemove];
+    if (previewImage === imgToRemove) {
+      setPreviewImage(null);
+    }
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
@@ -312,52 +316,60 @@ export const ItemModal: React.FC<ItemModalProps> = ({
                 return (
                   <div
                     key={slotIdx}
-                    className="relative group aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-white shadow-2xs flex items-center justify-center transition-all hover:border-indigo-400"
+                    onClick={() => setPreviewImage(imgUrl)}
+                    className="relative group aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-white shadow-2xs flex items-center justify-center transition-all hover:border-indigo-500 cursor-pointer hover:shadow-md"
+                    title="Click to view full large photo"
                   >
                     <img
                       src={imgUrl}
                       alt={`Product ${slotIdx + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-200"
                     />
 
                     {/* Main Cover Badge */}
                     {isCover && (
-                      <div className="absolute top-1 left-1 bg-emerald-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight flex items-center gap-0.5 pointer-events-none z-10">
+                      <div className="absolute top-1.5 left-1.5 bg-emerald-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight flex items-center gap-0.5 pointer-events-none z-10">
                         <Star className="w-2.5 h-2.5 fill-white" /> Cover
                       </div>
                     )}
 
-                    {/* Hover / Touch Overlay Controls */}
-                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1 z-20">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewImage(imgUrl)}
-                          className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
-                          title="Preview Large"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(slotIdx)}
-                          className="p-1.5 bg-rose-600/90 hover:bg-rose-600 text-white rounded-lg transition-transform hover:scale-105 shadow-xs cursor-pointer"
-                          title="Remove Photo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                    {/* Distinct Delete / Remove Button in Top-Right with StopPropagation & Confirmation */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Are you sure you want to remove this photo?')) {
+                          handleRemoveImage(slotIdx);
+                        }
+                      }}
+                      className="absolute top-1.5 right-1.5 p-1.5 bg-rose-600/90 hover:bg-rose-700 active:scale-95 text-white rounded-full transition-all shadow-md cursor-pointer z-30"
+                      title="Remove Photo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
 
-                      {!isCover && (
-                        <button
-                          type="button"
-                          onClick={() => handleSetPrimaryCover(slotIdx)}
-                          className="text-[9px] font-bold text-white bg-slate-800/90 hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-xs"
-                        >
-                          Make Cover
-                        </button>
-                      )}
+                    {/* Overlay Cue: Click to preview full size */}
+                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1 z-20 pointer-events-none">
+                      <div className="p-1.5 bg-white/95 text-slate-800 rounded-full shadow-md flex items-center gap-1 px-2.5 py-1">
+                        <Eye className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-[10px] font-extrabold text-slate-800">Preview</span>
+                      </div>
                     </div>
+
+                    {/* Make Cover Button at Bottom */}
+                    {!isCover && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetPrimaryCover(slotIdx);
+                        }}
+                        className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[9px] font-extrabold text-white bg-slate-900/90 hover:bg-slate-900 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-md z-30 active:scale-95"
+                        title="Set as product primary cover"
+                      >
+                        Make Cover
+                      </button>
+                    )}
                   </div>
                 );
               })}

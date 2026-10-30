@@ -248,16 +248,15 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
       .filter((tx) => {
         const matchesFirm = selectedFirmId === 'ALL' || tx.firmId === Number(selectedFirmId);
         const matchesDate = tx.date === todayStr;
-        return matchesFirm && matchesDate && (tx.type === 'PAYMENT_IN' || tx.type === 'SALE');
+        const isCash = tx.paymentMode === 'CASH' || (tx.paymentMode === 'SPLIT' && (tx.splitPayment?.cashAmount || 0) > 0);
+        return matchesFirm && matchesDate && isCash;
       })
       .reduce((sum, tx) => {
-        if (tx.paymentMode === 'CASH') {
-          return sum + (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-        }
-        if (tx.paymentMode === 'SPLIT' && tx.splitPayment?.cashAmount) {
-          return sum + tx.splitPayment.cashAmount;
-        }
-        return sum;
+        const val = tx.paymentMode === 'SPLIT' && tx.splitPayment?.cashAmount
+          ? tx.splitPayment.cashAmount
+          : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
+        const isOutflow = tx.type === 'EXPENSE' || tx.type === 'PAYMENT_OUT' || tx.type === 'PURCHASE' || (tx.type === 'CONTRA' && tx.contraType === 'CASH_TO_BANK');
+        return sum + (isOutflow ? -val : val);
       }, 0);
   }, [transactions, selectedFirmId, todayStr]);
 
@@ -607,13 +606,17 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
               </div>
             ) : (
               filteredParties.map((p) => {
-                const isPaid = p.currentBalance <= 0;
+                const isCleared = p.currentBalance === 0;
+                const isAdvance = p.currentBalance < 0;
+                const isDue = p.currentBalance > 0;
                 return (
                   <div
                     key={p.id}
                     className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
-                      isPaid
+                      isCleared
                         ? 'bg-slate-900/40 border-slate-800/60 opacity-60'
+                        : isAdvance
+                        ? 'bg-purple-950/20 border-purple-800/50 hover:border-purple-700'
                         : 'bg-slate-900 border-slate-800 hover:border-slate-700'
                     }`}
                   >
@@ -629,10 +632,17 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
                       </div>
 
                       <div className="text-right shrink-0">
-                        {isPaid ? (
+                        {isCleared ? (
                           <span className="text-[10px] font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-800">
                             ✓ Cleared
                           </span>
+                        ) : isAdvance ? (
+                          <div className="text-right">
+                            <span className="text-[10px] font-black text-purple-300 bg-purple-900/60 px-2 py-0.5 rounded-md border border-purple-700 block">
+                              Adv: {formatCurrency(Math.abs(p.currentBalance))}
+                            </span>
+                            <span className="text-[8px] font-bold text-purple-400 uppercase mt-0.5 block">You'll Give</span>
+                          </div>
                         ) : (
                           <div className="text-sm font-black text-rose-400">
                             {formatCurrency(p.currentBalance)}
@@ -641,12 +651,16 @@ export const WatchCollectionMode: React.FC<WatchCollectionModeProps> = ({
                       </div>
                     </div>
 
-                    {!isPaid && (
+                    {!isCleared && (
                       <button
                         onClick={() => handleOpenPartyReceipt(p)}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                        className={`w-full py-2 active:scale-95 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-all ${
+                          isAdvance 
+                            ? 'bg-purple-700 hover:bg-purple-600' 
+                            : 'bg-emerald-600 hover:bg-emerald-500'
+                        }`}
                       >
-                        <span>💵 Receive Payment</span>
+                        <span>{isAdvance ? '💵 Take More / Return' : '💵 Receive Payment'}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     )}

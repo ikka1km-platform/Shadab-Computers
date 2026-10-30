@@ -50,6 +50,17 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
   }, [initialFirmId]);
 
   // Find all distinct dates that have cash receipts
+// Helper to identify cash outflow vs inflow transactions
+const isCashOutflowTx = (tx: Transaction): boolean => {
+  if (tx.type === 'EXPENSE' || tx.type === 'PAYMENT_OUT' || tx.type === 'PURCHASE' || tx.type === 'CREDIT_NOTE') {
+    return true;
+  }
+  if (tx.type === 'CONTRA') {
+    return tx.contraType === 'CASH_TO_BANK';
+  }
+  return false;
+};
+
   const datesWithCash = useMemo(() => {
     const datesMap = new Map<string, { count: number; total: number }>();
     transactions.forEach((tx) => {
@@ -64,7 +75,8 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
         const amt = tx.paymentMode === 'SPLIT' && tx.splitPayment
           ? tx.splitPayment.cashAmount
           : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-        datesMap.set(d, { count: prev.count + 1, total: prev.total + amt });
+        const sign = isCashOutflowTx(tx) ? -1 : 1;
+        datesMap.set(d, { count: prev.count + 1, total: prev.total + (sign * amt) });
       }
     });
     return Array.from(datesMap.entries())
@@ -109,7 +121,8 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
         const val = tx.paymentMode === 'SPLIT' && tx.splitPayment 
           ? tx.splitPayment.cashAmount 
           : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-        return sum + val;
+        const sign = isCashOutflowTx(tx) ? -1 : 1;
+        return sum + (sign * val);
       }, 0);
     }
     const targetFirm = firms.find((f) => f.id === fId);
@@ -124,7 +137,8 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
         const val = tx.paymentMode === 'SPLIT' && tx.splitPayment 
           ? tx.splitPayment.cashAmount 
           : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-        return sum + val;
+        const sign = isCashOutflowTx(tx) ? -1 : 1;
+        return sum + (sign * val);
       }, 0);
   };
 
@@ -167,22 +181,25 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
   };
 
   dayCashTxs.forEach((tx) => {
+    const isOutflow = isCashOutflowTx(tx);
+    const sign = isOutflow ? -1 : 1;
+
     if (tx.cashDenominations) {
       const cd = tx.cashDenominations;
-      aggregatedDenoms.c500 = (aggregatedDenoms.c500 || 0) + (cd.c500 || 0);
-      aggregatedDenoms.c200 = (aggregatedDenoms.c200 || 0) + (cd.c200 || 0);
-      aggregatedDenoms.c100 = (aggregatedDenoms.c100 || 0) + (cd.c100 || 0);
-      aggregatedDenoms.c50 = (aggregatedDenoms.c50 || 0) + (cd.c50 || 0);
-      aggregatedDenoms.c20 = (aggregatedDenoms.c20 || 0) + (cd.c20 || 0);
-      aggregatedDenoms.c10 = (aggregatedDenoms.c10 || 0) + (cd.c10 || 0);
-      aggregatedDenoms.c5 = (aggregatedDenoms.c5 || 0) + (cd.c5 || 0);
-      aggregatedDenoms.coins = (aggregatedDenoms.coins || 0) + (cd.coins || 0);
+      aggregatedDenoms.c500 = (aggregatedDenoms.c500 || 0) + sign * (cd.c500 || 0);
+      aggregatedDenoms.c200 = (aggregatedDenoms.c200 || 0) + sign * (cd.c200 || 0);
+      aggregatedDenoms.c100 = (aggregatedDenoms.c100 || 0) + sign * (cd.c100 || 0);
+      aggregatedDenoms.c50 = (aggregatedDenoms.c50 || 0) + sign * (cd.c50 || 0);
+      aggregatedDenoms.c20 = (aggregatedDenoms.c20 || 0) + sign * (cd.c20 || 0);
+      aggregatedDenoms.c10 = (aggregatedDenoms.c10 || 0) + sign * (cd.c10 || 0);
+      aggregatedDenoms.c5 = (aggregatedDenoms.c5 || 0) + sign * (cd.c5 || 0);
+      aggregatedDenoms.coins = (aggregatedDenoms.coins || 0) + sign * (cd.coins || 0);
     } else {
       // If a cash transaction didn't have explicit note entry, count actual paid cash amount as loose cash
       const cashVal = tx.paymentMode === 'SPLIT' && tx.splitPayment
         ? tx.splitPayment.cashAmount
         : (tx.paidAmount !== undefined ? tx.paidAmount : tx.amount);
-      aggregatedDenoms.coins = (aggregatedDenoms.coins || 0) + cashVal;
+      aggregatedDenoms.coins = (aggregatedDenoms.coins || 0) + sign * cashVal;
     }
   });
 
@@ -759,7 +776,7 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
                   <th className="p-3">Customer / Party</th>
                   <th className="p-3">Firm / Unit</th>
                   <th className="p-3">Mode</th>
-                  <th className="p-3 text-right">Cash Received</th>
+                  <th className="p-3 text-right">Cash In / Out</th>
                   <th className="p-3">Notes Breakdown Provided</th>
                 </tr>
               </thead>
@@ -780,7 +797,20 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
 
                   return (
                     <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-mono font-bold text-slate-800">{tx.voucherNumber}</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{tx.voucherNumber}</span>
+                          {isCashOutflowTx(tx) ? (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                              {tx.type} (Out)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              {tx.type} (In)
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3">
                         <div className="font-bold text-slate-800">{tx.partyName || 'Customer'}</div>
                         {tx.description && <div className="text-[11px] text-slate-400">{tx.description}</div>}
@@ -797,8 +827,10 @@ export const DenominationReport: React.FC<DenominationReportProps> = ({
                           {tx.paymentMode}
                         </span>
                       </td>
-                      <td className="p-3 text-right font-bold text-emerald-700">
-                        {formatCurrency(cashVal)}
+                      <td className={`p-3 text-right font-black ${
+                        isCashOutflowTx(tx) ? 'text-rose-600' : 'text-emerald-700'
+                      }`}>
+                        {isCashOutflowTx(tx) ? `- ${formatCurrency(cashVal)}` : `+ ${formatCurrency(cashVal)}`}
                       </td>
                       <td className="p-3">
                         {noteChips.length > 0 ? (
