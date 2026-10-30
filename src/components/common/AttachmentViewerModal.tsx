@@ -20,6 +20,13 @@ export const AttachmentViewerModal: React.FC<AttachmentViewerModalProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
+    if (imageUrl && attachments.length > 0) {
+      const foundIdx = attachments.indexOf(imageUrl);
+      if (foundIdx >= 0) {
+        setCurrentIndex(foundIdx);
+        return;
+      }
+    }
     setCurrentIndex(0);
   }, [isOpen, imageUrl, attachments]);
 
@@ -45,8 +52,14 @@ export const AttachmentViewerModal: React.FC<AttachmentViewerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+      >
         {/* Modal Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between text-white">
           <div className="flex items-center gap-2">

@@ -2227,25 +2227,41 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
 
           {/* Thumbnails preview strip (if any attached) */}
           {attachments.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pt-0.5 pb-0.5">
+            <div className="flex gap-2.5 overflow-x-auto pt-1 pb-1 scrollbar-none items-center">
               {attachments.map((imgUrl, idx) => (
-                <div key={idx} className="relative group shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-slate-300 bg-white">
+                <div
+                  key={idx}
+                  onClick={() => setViewingAttachment(imgUrl)}
+                  className="relative group shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-300 hover:border-blue-500 bg-white shadow-2xs cursor-pointer active:scale-95 transition-all"
+                  title="Click to view full photo / bill attachment"
+                >
                   <img
                     src={imgUrl}
                     alt={`Attachment ${idx + 1}`}
-                    className="w-full h-full object-cover cursor-pointer"
-                    onClick={() => setViewingAttachment(imgUrl)}
+                    className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(idx)}
-                      className="p-0.5 bg-rose-600 text-white rounded cursor-pointer"
-                      title="Delete attachment"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+
+                  {/* Eye Preview Cue on Hover */}
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                    <div className="p-1 bg-white/90 rounded-full text-slate-800 shadow-xs">
+                      <Eye className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
                   </div>
+
+                  {/* Remove Button in Top Right with StopPropagation & Confirmation */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Are you sure you want to delete this attached photo?')) {
+                        handleRemoveAttachment(idx);
+                      }
+                    }}
+                    className="absolute top-1 right-1 p-1 bg-rose-600/90 hover:bg-rose-700 active:scale-90 text-white rounded-full shadow-md transition-all cursor-pointer z-10"
+                    title="Delete attachment"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -2391,6 +2407,7 @@ _${firmName}${profile?.phone ? ` • Ph: ${profile.phone}` : ''}_`;
         isOpen={Boolean(viewingAttachment)}
         onClose={() => setViewingAttachment(null)}
         imageUrl={viewingAttachment || undefined}
+        attachments={attachments}
         title={`Attachment - ${voucherNumber}`}
       />
 
