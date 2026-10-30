@@ -48,6 +48,7 @@ interface ReportsProps {
   firms?: Firm[];
   bankAccounts?: BankAccount[];
   initialFirmId?: number | 'ALL';
+  onEditTx?: (tx: Transaction) => void;
 }
 
 type ReportTab = 
@@ -73,6 +74,7 @@ export const Reports: React.FC<ReportsProps> = ({
   firms = [],
   bankAccounts = [],
   initialFirmId = 'ALL',
+  onEditTx,
 }) => {
   const [reportTab, setReportTab] = useState<ReportTab>('pnl');
   const [selectedFirmId, setSelectedFirmId] = useState<number | 'ALL'>(initialFirmId);
@@ -98,6 +100,17 @@ export const Reports: React.FC<ReportsProps> = ({
   const [productSearchQuery, setProductSearchQuery] = useState<string>('');
   const [buyerSearchQuery, setBuyerSearchQuery] = useState<string>('');
   const [itemSalesSortOrder, setItemSalesSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
+
+  // Direct 1-tap navigation to voucher entry
+  const handleOpenVoucher = (txId?: number, voucherNumber?: string) => {
+    if (!onEditTx) return;
+    const matched = transactions.find(
+      (t) => (txId !== undefined && t.id === txId) || (voucherNumber && t.voucherNumber === voucherNumber)
+    );
+    if (matched) {
+      onEditTx(matched);
+    }
+  };
 
   const activeFirm = selectedFirmId !== 'ALL' ? firms.find((f) => f.id === Number(selectedFirmId)) : undefined;
 
@@ -616,8 +629,9 @@ export const Reports: React.FC<ReportsProps> = ({
 
       if (tx.items && tx.items.length > 0) {
         tx.items.forEach((it, idx) => {
+          const itName = (it.name || '').trim();
           records.push({
-            id: `${tx.id}-${it.itemId ?? idx}-${it.name}`,
+            id: `${tx.id}-${it.itemId ?? idx}-${itName}`,
             txId: tx.id,
             voucherNumber: tx.voucherNumber,
             date: tx.date,
@@ -627,7 +641,7 @@ export const Reports: React.FC<ReportsProps> = ({
             firmId: tx.firmId,
             firmName: tx.firmName || activeFirm?.name || 'Main Firm',
             itemId: it.itemId,
-            itemName: it.name,
+            itemName: itName,
             quantity: it.quantity * multiplier,
             unit: it.unit || 'Pcs',
             rate: it.rate,
@@ -639,60 +653,45 @@ export const Reports: React.FC<ReportsProps> = ({
           });
         });
       } else if (tx.description && tx.description.trim()) {
-        records.push({
-          id: `${tx.id}-desc`,
-          txId: tx.id,
-          voucherNumber: tx.voucherNumber,
-          date: tx.date,
-          partyName: tx.partyName || 'Cash Sale',
-          partyId: tx.partyId,
-          phone: matchedParty?.phone,
-          firmId: tx.firmId,
-          firmName: tx.firmName || activeFirm?.name || 'Main Firm',
-          itemName: tx.description,
-          quantity: 1 * multiplier,
-          unit: 'Pcs',
-          rate: tx.amount,
-          total: tx.amount * multiplier,
-          paymentMode: tx.paymentMode,
-          paymentStatus: tx.paymentStatus,
-        });
-      } else {
-        records.push({
-          id: `${tx.id}-gen`,
-          txId: tx.id,
-          voucherNumber: tx.voucherNumber,
-          date: tx.date,
-          partyName: tx.partyName || 'Cash Sale',
-          partyId: tx.partyId,
-          phone: matchedParty?.phone,
-          firmId: tx.firmId,
-          firmName: tx.firmName || activeFirm?.name || 'Main Firm',
-          itemName: 'Direct Sale Voucher',
-          quantity: 1 * multiplier,
-          unit: 'Pcs',
-          rate: tx.amount,
-          total: tx.amount * multiplier,
-          paymentMode: tx.paymentMode,
-          paymentStatus: tx.paymentStatus,
-        });
+        const desc = tx.description.trim();
+        // ONLY include if description matches an actual stock inventory item from Stock Summary!
+        const matchedItem = items.find(
+          (it) => it.name.trim().toLowerCase() === desc.toLowerCase()
+        );
+        if (matchedItem) {
+          records.push({
+            id: `${tx.id}-desc`,
+            txId: tx.id,
+            voucherNumber: tx.voucherNumber,
+            date: tx.date,
+            partyName: tx.partyName || 'Cash Sale',
+            partyId: tx.partyId,
+            phone: matchedParty?.phone,
+            firmId: tx.firmId,
+            firmName: tx.firmName || activeFirm?.name || 'Main Firm',
+            itemId: matchedItem.id,
+            itemName: matchedItem.name,
+            quantity: 1 * multiplier,
+            unit: matchedItem.unit || 'Pcs',
+            rate: tx.amount,
+            total: tx.amount * multiplier,
+            paymentMode: tx.paymentMode,
+            paymentStatus: tx.paymentStatus,
+          });
+        }
       }
     }
 
     return records;
   }, [filteredTxs, parties, activeFirm]);
 
-  // Available product options for filtering
+  // Available product options for filtering - strictly from Stock Summary catalog
   const availableProductOptions = useMemo(() => {
-    const set = new Map<string, string>();
-    items.forEach((it) => set.set(it.name.toLowerCase(), it.name));
-    allItemSaleRecords.forEach((r) => {
-      if (!set.has(r.itemName.toLowerCase())) {
-        set.set(r.itemName.toLowerCase(), r.itemName);
-      }
-    });
-    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
-  }, [items, allItemSaleRecords]);
+    const catalogItemNames = items
+      .map((it) => it.name.trim())
+      .filter(Boolean);
+    return Array.from(new Set(catalogItemNames)).sort((a, b) => a.localeCompare(b));
+  }, [items]);
 
   // Filtered Item Sales Records
   const filteredItemSaleRecords = useMemo(() => {
@@ -1804,8 +1803,18 @@ export const Reports: React.FC<ReportsProps> = ({
                     </tr>
                   ) : (
                     displayFilteredTxs.filter((t) => t.type === 'SALE' || t.type === 'CREDIT_NOTE').map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-mono font-bold text-blue-600">{tx.voucherNumber}</td>
+                      <tr 
+                        key={tx.id} 
+                        onClick={() => onEditTx && onEditTx(tx)}
+                        className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
+                        title="Click to view/edit sales voucher entry"
+                      >
+                        <td className="p-3 font-mono font-bold text-blue-600 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="underline decoration-blue-300 group-hover:text-blue-800">{tx.voucherNumber}</span>
+                            <ArrowUpRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-blue-600" />
+                          </div>
+                        </td>
                         <td className="p-3 text-slate-500 whitespace-nowrap">{formatDate(tx.date)}</td>
                         <td className="p-3 font-semibold text-slate-800">{tx.partyName || 'Cash Sale'}</td>
                         <td className="p-3">
@@ -1828,6 +1837,17 @@ export const Reports: React.FC<ReportsProps> = ({
                           }`}>
                             {tx.paymentStatus || 'PAID'}
                           </span>
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => onEditTx && onEditTx(tx)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-all cursor-pointer"
+                            title="Recheck / Edit Sales Voucher"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>Voucher</span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -2082,6 +2102,7 @@ export const Reports: React.FC<ReportsProps> = ({
                     <th className="p-3 text-right">Rate</th>
                     <th className="p-3 text-right">Line Total</th>
                     <th className="p-3 text-center">Payment / Status</th>
+                    <th className="p-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -2110,9 +2131,17 @@ export const Reports: React.FC<ReportsProps> = ({
                     </tr>
                   ) : (
                     filteredItemSaleRecords.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                      <tr 
+                        key={r.id} 
+                        onClick={() => handleOpenVoucher(r.txId, r.voucherNumber)}
+                        className="hover:bg-blue-50/70 transition-colors cursor-pointer group"
+                        title="Click to view/edit this voucher entry"
+                      >
                         <td className="p-3 font-mono font-bold text-blue-600 whitespace-nowrap">
-                          {r.voucherNumber}
+                          <div className="flex items-center gap-1.5">
+                            <span className="underline decoration-blue-300 group-hover:text-blue-800">{r.voucherNumber}</span>
+                            <ArrowUpRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-blue-600" />
+                          </div>
                         </td>
                         <td className="p-3 text-slate-500 whitespace-nowrap">
                           {formatDate(r.date)}
@@ -2185,6 +2214,17 @@ export const Reports: React.FC<ReportsProps> = ({
                             </span>
                           </div>
                         </td>
+                        <td className="p-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenVoucher(r.txId, r.voucherNumber)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-all cursor-pointer"
+                            title="Recheck / Edit Voucher Entry"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>Voucher</span>
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -2249,8 +2289,18 @@ export const Reports: React.FC<ReportsProps> = ({
                     </tr>
                   ) : (
                     displayFilteredTxs.filter((t) => t.type === 'PURCHASE' || t.type === 'DEBIT_NOTE').map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-mono font-bold text-purple-600">{tx.voucherNumber}</td>
+                      <tr 
+                        key={tx.id} 
+                        onClick={() => onEditTx && onEditTx(tx)}
+                        className="hover:bg-purple-50/70 transition-colors cursor-pointer group"
+                        title="Click to view/edit purchase voucher entry"
+                      >
+                        <td className="p-3 font-mono font-bold text-purple-600 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="underline decoration-purple-300 group-hover:text-purple-800">{tx.voucherNumber}</span>
+                            <ArrowUpRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-purple-600" />
+                          </div>
+                        </td>
                         <td className="p-3 text-slate-500 whitespace-nowrap">{formatDate(tx.date)}</td>
                         <td className="p-3 font-semibold text-slate-800">{tx.partyName || 'Cash Supplier'}</td>
                         <td className="p-3">
@@ -2273,6 +2323,17 @@ export const Reports: React.FC<ReportsProps> = ({
                           }`}>
                             {tx.paymentStatus || 'PAID'}
                           </span>
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => onEditTx && onEditTx(tx)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-all cursor-pointer"
+                            title="Recheck / Edit Purchase Voucher"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>Voucher</span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -2346,7 +2407,20 @@ export const Reports: React.FC<ReportsProps> = ({
                     const isLow = it.stockQuantity <= (it.minStockAlert || 5);
                     return (
                       <tr key={it.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-bold text-slate-800">{it.name}</td>
+                        <td className="p-3 font-bold text-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductFilter(it.name);
+                              setReportTab('item_sales');
+                            }}
+                            className="font-bold text-slate-800 hover:text-blue-600 hover:underline cursor-pointer flex items-center gap-1.5"
+                            title={`Click to view all sales vouchers for ${it.name}`}
+                          >
+                            <Tag className="w-3.5 h-3.5 text-blue-500" />
+                            <span>{it.name}</span>
+                          </button>
+                        </td>
                         <td className="p-3 font-mono text-slate-500">{it.code || it.barcode || '-'}</td>
                         <td className="p-3 text-slate-600">{it.category || 'General'}</td>
                         <td className="p-3 text-right font-black text-slate-900">
@@ -2375,11 +2449,11 @@ export const Reports: React.FC<ReportsProps> = ({
                               setSelectedProductFilter(it.name);
                               setReportTab('item_sales');
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                            title={`View buyer history for ${it.name}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                            title={`View all sales vouchers and buyer history for ${it.name}`}
                           >
-                            <ShoppingBag className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Buyers</span>
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Sales & Vouchers</span>
                           </button>
                         </td>
                       </tr>

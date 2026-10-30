@@ -1124,6 +1124,7 @@ export const App: React.FC = () => {
                 firms={firms}
                 bankAccounts={bankAccounts}
                 initialFirmId={selectedFirmId}
+                onEditTx={handleOpenEditTx}
               />
             ) : (
               <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-xs">
